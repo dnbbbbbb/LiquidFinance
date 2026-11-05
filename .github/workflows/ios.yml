@@ -14,7 +14,7 @@ jobs:
     runs-on: macos-latest
     env:
       IOS_SIGNING_ENABLED: ${{ secrets.IOS_CERTIFICATE_BASE64 != '' && secrets.IOS_CERTIFICATE_PASSWORD != '' && secrets.IOS_PROVISIONING_PROFILE_BASE64 != '' && secrets.IOS_PROFILE_NAME != '' && secrets.IOS_TEAM_ID != '' }}
-      RELEASE_VERSION: ${{ startsWith(github.ref, 'refs/tags/v4.0.') && github.ref_name || format('v4.0.{0}', github.run_number) }}
+      RELEASE_VERSION: ${{ startsWith(github.ref, 'refs/tags/v3.8.') && github.ref_name || format('v3.8.{0}', github.run_number) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,8 +28,8 @@ jobs:
       - name: Validate release tag version
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         run: |
-          if [[ ! "$GITHUB_REF_NAME" =~ ^v4\.0\.[0-9]+$ ]]; then
-            echo "Release tags must use the current v4.0 version (for example v4.0.0)." >&2
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v3\.8\.[0-9]+$ ]]; then
+            echo "Release tags must use the current v3.8 version (for example v3.8.0)." >&2
             exit 1
           fi
 

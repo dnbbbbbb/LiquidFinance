@@ -3,7 +3,6 @@ import SwiftUI
 @main
 struct LiquidFinanceApp: App {
     @StateObject private var store: FinanceStore
-    @StateObject private var cloudSync = ICloudSyncViewModel()
 
     init() {
         let store = FinanceStore()
@@ -16,7 +15,7 @@ struct LiquidFinanceApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(store: store, cloudSync: cloudSync)
+            ContentView(store: store)
                 .environment(\.locale, Locale(identifier: "vi_VN"))
         }
     }

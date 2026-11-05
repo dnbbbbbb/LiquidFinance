@@ -21,7 +21,6 @@ final class FinanceStore: ObservableObject {
     private let walletsKey = "finance.wallets.v1"
     private let recurringKey = "finance.recurring.v1"
     private let widgetDefaults = UserDefaults(suiteName: "group.vn.liquidfinance")
-    static let didChangeNotification = Notification.Name("finance.data.didChange")
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -29,11 +28,7 @@ final class FinanceStore: ObservableObject {
         self.transactions = loadedTransactions
         self.budgets = Self.decode([SpendingBudget].self, from: defaults, key: "finance.budgets.v1") ?? []
         self.preferences = Self.decode(FinancePreferences.self, from: defaults, key: "finance.preferences.v1") ?? FinancePreferences()
-        var loadedCategories = Self.decode([FinanceCategory].self, from: defaults, key: "finance.categories.v1") ?? FinanceCategory.defaults
-        for category in FinanceCategory.defaults where !loadedCategories.contains(where: { $0.id == category.id }) {
-            loadedCategories.append(category)
-        }
-        self.categories = loadedCategories
+        self.categories = Self.decode([FinanceCategory].self, from: defaults, key: "finance.categories.v1") ?? FinanceCategory.defaults
         var loadedWallets = Self.decode([FinanceWallet].self, from: defaults, key: "finance.wallets.v1") ?? [FinanceWallet(name: "Tiền mặt"), FinanceWallet(name: "Tài khoản ngân hàng", kind: "Tài khoản ngân hàng")]
         for legacyName in Set(loadedTransactions.map(\.account)) where !loadedWallets.contains(where: { $0.name == legacyName }) {
             loadedWallets.append(FinanceWallet(name: legacyName, kind: "Nguồn tiền khác"))
@@ -55,7 +50,7 @@ final class FinanceStore: ObservableObject {
     }
 
     var mostRecentlyUsedWallet: FinanceWallet {
-        let recent = transactions.filter { !$0.isInternalTransfer }.max { $0.date < $1.date }
+        let recent = transactions.filter { $0.transferID == nil }.max { $0.date < $1.date }
         if let recent {
             if let id = recent.walletID, let wallet = wallets.first(where: { $0.id == id }) { return wallet }
             if let wallet = wallets.first(where: { $0.name == recent.account }) { return wallet }
@@ -72,12 +67,12 @@ final class FinanceStore: ObservableObject {
     }
 
     func total(for type: TransactionType, from start: Date, through end: Date) -> Double {
-        transactions(from: start, through: end).filter { $0.type == type && !$0.isInternalTransfer && $0.includeInReports }.reduce(0) { $0 + $1.amount }
+        transactions(from: start, through: end).filter { $0.type == type && $0.transferID == nil && $0.includeInReports }.reduce(0) { $0 + $1.amount }
     }
 
     func total(for type: TransactionType, in month: Date, calendar: Calendar = .current) -> Double {
         transactions(in: month, calendar: calendar)
-            .filter { $0.type == type && !$0.isInternalTransfer && $0.includeInReports }
+            .filter { $0.type == type && $0.transferID == nil && $0.includeInReports }
             .reduce(0) { $0 + $1.amount }
     }
 
@@ -94,19 +89,19 @@ final class FinanceStore: ObservableObject {
     func reportSpent(for category: FinanceCategory, from start: Date, through end: Date) -> Double {
         let categoryIDs = Set([category.id] + categories.filter { $0.parentID == category.id }.map(\.id))
         return transactions(from: start, through: end)
-            .filter { $0.type == .expense && !$0.isInternalTransfer && $0.includeInReports && categoryIDs.contains($0.category.id) }
+            .filter { $0.type == .expense && $0.transferID == nil && $0.includeInReports && categoryIDs.contains($0.category.id) }
             .reduce(0) { $0 + $1.amount }
     }
 
     private func spent(categoryIDs: Set<String>, from start: Date, through end: Date) -> Double {
         transactions(from: start, through: end)
-            .filter { $0.type == .expense && !$0.isInternalTransfer && categoryIDs.contains($0.category.id) }
+            .filter { $0.type == .expense && $0.transferID == nil && categoryIDs.contains($0.category.id) }
             .reduce(0) { $0 + $1.amount }
     }
 
     func spent(for budget: SpendingBudget, from start: Date, through end: Date) -> Double {
         let ids = Set(budget.categoryIDs + categories.filter { budget.categoryIDs.contains($0.parentID ?? "") }.map(\.id))
-        return transactions(from: start, through: end).filter { $0.type == .expense && !$0.isInternalTransfer && ids.contains($0.category.id) }.reduce(0) { $0 + $1.amount }
+        return transactions(from: start, through: end).filter { $0.type == .expense && $0.transferID == nil && ids.contains($0.category.id) }.reduce(0) { $0 + $1.amount }
     }
 
     func setRecurringRule(_ rule: RecurringRule) {
@@ -183,9 +178,6 @@ final class FinanceStore: ObservableObject {
             transactions.append(transaction)
         }
         persist(transactions, key: transactionsKey)
-        if transaction.type == .expense && !transaction.isInternalTransfer {
-            Task { await BudgetAlertService.evaluate(budgets: budgets, store: self, date: transaction.date) }
-        }
     }
 
     func deleteTransaction(id: UUID) {
@@ -194,18 +186,14 @@ final class FinanceStore: ObservableObject {
         persist(transactions, key: transactionsKey)
     }
 
-    func transfer(amount: Double, fee: Double = 0, from source: FinanceWallet, to destination: FinanceWallet, date: Date = .now, note: String = "") {
+    func transfer(amount: Double, from source: FinanceWallet, to destination: FinanceWallet, date: Date = .now, note: String = "") {
         guard amount > 0, source.id != destination.id else { return }
         let transferID = UUID()
         let title = "Chuyển khoản nội bộ"
         let suffix = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        transactions.append(FinanceTransaction(title: title, amount: amount, date: date, type: .expense, category: .other, account: source.name, walletID: source.id, transferID: transferID, isInternalTransfer: true, note: suffix, includeInReports: false))
-        transactions.append(FinanceTransaction(title: title, amount: amount, date: date, type: .income, category: .incomeOther, account: destination.name, walletID: destination.id, transferID: transferID, isInternalTransfer: true, note: suffix, includeInReports: false))
-        if fee > 0 {
-            transactions.append(FinanceTransaction(title: "Phí chuyển khoản", amount: fee, date: date, type: .expense, category: categories.first(where: { $0.id == FinanceCategory.transferFee.id }) ?? .transferFee, account: source.name, walletID: source.id, note: suffix))
-        }
+        transactions.append(FinanceTransaction(title: title, amount: amount, date: date, type: .expense, category: .other, account: source.name, walletID: source.id, transferID: transferID, note: suffix))
+        transactions.append(FinanceTransaction(title: title, amount: amount, date: date, type: .income, category: .incomeOther, account: destination.name, walletID: destination.id, transferID: transferID, note: suffix))
         persist(transactions, key: transactionsKey)
-        if fee > 0 { Task { await BudgetAlertService.evaluate(budgets: budgets, store: self, date: date) } }
     }
 
     func setBudget(_ budget: SpendingBudget) {
@@ -266,7 +254,6 @@ final class FinanceStore: ObservableObject {
         guard let data = try? JSONEncoder().encode(value) else { return }
         defaults.set(data, forKey: key)
         syncWidgetSnapshot()
-        NotificationCenter.default.post(name: Self.didChangeNotification, object: self)
     }
 
     private func syncWidgetSnapshot() {

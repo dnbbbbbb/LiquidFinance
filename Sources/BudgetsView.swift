@@ -181,8 +181,6 @@ struct BudgetEditorView: View {
     @State private var selectedCategoryIDs: Set<String>
     @State private var limitText: String
     @State private var period: BudgetPeriod
-    @State private var alertsEnabled: Bool
-    @State private var alertThreshold: Int
     @State private var showingValidationError = false
 
     init(store: FinanceStore, budget: SpendingBudget? = nil) {
@@ -192,8 +190,6 @@ struct BudgetEditorView: View {
         _selectedCategoryIDs = State(initialValue: Set(budget?.categoryIDs ?? [budget?.category.id ?? FinanceCategory.food.id]))
         _limitText = State(initialValue: budget.map { $0.monthlyLimit == 0 ? "" : AmountInput.format($0.monthlyLimit) } ?? "")
         _period = State(initialValue: budget?.period ?? .monthly)
-        _alertsEnabled = State(initialValue: budget?.alertsEnabled ?? false)
-        _alertThreshold = State(initialValue: budget?.alertThreshold ?? 80)
     }
 
     var body: some View {
@@ -221,19 +217,6 @@ struct BudgetEditorView: View {
                     HStack {
                         AmountTextField(text: $limitText, placeholder: "0", fontSize: 22).frame(height: 34)
                         Text(store.preferences.currencyCode).foregroundStyle(FinanceStyle.muted)
-                    }
-                }
-                Section("Cảnh báo ngân sách") {
-                    Toggle("Nhận thông báo cho ngân sách này", isOn: $alertsEnabled)
-                        .tint(FinanceStyle.purple)
-                    if alertsEnabled {
-                        Picker("Cảnh báo sớm", selection: $alertThreshold) {
-                            Text("70%").tag(70)
-                            Text("80%").tag(80)
-                            Text("90%").tag(90)
-                        }
-                        Text("Ứng dụng sẽ nhắc một lần khi gần chạm, chạm và vượt giới hạn trong mỗi chu kỳ.")
-                            .font(.footnote).foregroundStyle(FinanceStyle.muted)
                     }
                 }
                 Section {
@@ -267,10 +250,7 @@ struct BudgetEditorView: View {
             return
         }
         if let selected = store.categories.first(where: { selectedCategoryIDs.contains($0.id) }) { category = selected }
-        if alertsEnabled {
-            Task { _ = await BudgetAlertService.requestAuthorization() }
-        }
-        store.setBudget(SpendingBudget(id: budget?.id ?? UUID(), category: category, monthlyLimit: limit, categoryIDs: Array(selectedCategoryIDs), period: period, alertThreshold: alertThreshold, alertsEnabled: alertsEnabled))
+        store.setBudget(SpendingBudget(id: budget?.id ?? UUID(), category: category, monthlyLimit: limit, categoryIDs: Array(selectedCategoryIDs), period: period))
         dismiss()
     }
 
