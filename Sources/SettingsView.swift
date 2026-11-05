@@ -18,7 +18,7 @@ struct SettingsView: View {
     private enum Confirmation: Equatable { case reset, restore }
 
     private var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "3.4.0"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "3.5.0"
     }
 
     private struct CurrencyOption: Identifiable {

@@ -10,8 +10,8 @@ settings:
     SWIFT_VERSION: "5.0"
     IPHONEOS_DEPLOYMENT_TARGET: "16.0"
     TARGETED_DEVICE_FAMILY: "1"
-    MARKETING_VERSION: "3.4.0"
-    CURRENT_PROJECT_VERSION: "34"
+    MARKETING_VERSION: "3.5.0"
+    CURRENT_PROJECT_VERSION: "35"
     GENERATE_INFOPLIST_FILE: YES
     INFOPLIST_KEY_CFBundleDisplayName: "Ví Tài Chính"
 targets:
@@ -31,6 +31,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: LiquidFinance.entitlements
         GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_EXPAND_BUILD_SETTINGS: YES
     dependencies:
       - target: LiquidFinanceWidgets
         embed: true

@@ -14,7 +14,7 @@ jobs:
     runs-on: macos-latest
     env:
       IOS_SIGNING_ENABLED: ${{ secrets.IOS_CERTIFICATE_BASE64 != '' && secrets.IOS_CERTIFICATE_PASSWORD != '' && secrets.IOS_PROVISIONING_PROFILE_BASE64 != '' && secrets.IOS_PROFILE_NAME != '' && secrets.IOS_TEAM_ID != '' }}
-      RELEASE_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v3.4.{0}', github.run_number) }}
+      RELEASE_VERSION: ${{ startsWith(github.ref, 'refs/tags/v3.5.') && github.ref_name || format('v3.5.{0}', github.run_number) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,6 +24,14 @@ jobs:
 
       - name: Generate Xcode project
         run: xcodegen generate --spec project.yml
+
+      - name: Validate release tag version
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v3\.5\.[0-9]+$ ]]; then
+            echo "Release tags must use the current v3.5 version (for example v3.5.0)." >&2
+            exit 1
+          fi
 
       - name: Validate WidgetKit extension metadata
         run: |
@@ -51,6 +59,16 @@ jobs:
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -resultBundlePath build/TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Set release version in app and widget plists
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+        run: |
+          VERSION="${RELEASE_VERSION#v}"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" LiquidFinance-Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $GITHUB_RUN_NUMBER" LiquidFinance-Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" Widgets/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $GITHUB_RUN_NUMBER" Widgets/Info.plist
+          plutil -lint LiquidFinance-Info.plist Widgets/Info.plist
 
       - name: Install Apple signing certificate and profile
         if: ${{ (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && env.IOS_SIGNING_ENABLED == 'true' }}
@@ -134,6 +152,34 @@ jobs:
           cd build/output
           /usr/bin/zip -qry "LiquidFinance-${RELEASE_VERSION}.ipa" Payload
           rm -rf Payload
+
+      - name: Verify IPA version and full-screen metadata
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+        env:
+          EXPECTED_VERSION: ${{ env.RELEASE_VERSION }}
+        run: |
+          EXPECTED_VERSION="${EXPECTED_VERSION#v}" python3 - <<'PY'
+          import os
+          import plistlib
+          import zipfile
+
+          ipa = f"build/output/LiquidFinance-{os.environ['RELEASE_VERSION']}.ipa"
+          expected_version = os.environ["EXPECTED_VERSION"]
+          expected_build = os.environ["GITHUB_RUN_NUMBER"]
+          with zipfile.ZipFile(ipa) as package:
+              app_path = "Payload/LiquidFinance.app/"
+              app = plistlib.loads(package.read(app_path + "Info.plist"))
+              widget = plistlib.loads(package.read(app_path + "PlugIns/LiquidFinanceWidgets.appex/Info.plist"))
+              assert app["CFBundleShortVersionString"] == expected_version, app["CFBundleShortVersionString"]
+              assert app["CFBundleVersion"] == expected_build, app["CFBundleVersion"]
+              assert widget["CFBundleShortVersionString"] == expected_version, widget["CFBundleShortVersionString"]
+              assert widget["CFBundleVersion"] == expected_build, widget["CFBundleVersion"]
+              assert 1 in app["UIDeviceFamily"], app.get("UIDeviceFamily")
+              launch_storyboard = app.get("UILaunchStoryboardName")
+              assert launch_storyboard, "Missing UILaunchStoryboardName"
+              assert any(name.startswith(app_path + launch_storyboard + ".storyboardc/") for name in package.namelist()), "Launch storyboard is missing from the IPA"
+          print(f"Verified IPA app/widget version {expected_version} ({expected_build}); iPhone launch screen is packaged.")
+          PY
 
       - name: Publish versioned IPA to GitHub Release
         if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}

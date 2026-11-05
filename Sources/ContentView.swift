@@ -42,6 +42,7 @@ struct ContentView: View {
                     .tag(FinanceTab.settings)
             }
             .tint(FinanceStyle.purple)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Button {
                 showingNewTransaction = true
@@ -60,6 +61,8 @@ struct ContentView: View {
             .padding(.trailing, 22)
             .padding(.bottom, 76)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(FinanceStyle.background.ignoresSafeArea())
         .sheet(isPresented: $showingNewTransaction) {
             TransactionEditorView(store: store)
         }
