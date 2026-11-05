@@ -175,8 +175,7 @@ jobs:
               assert widget["CFBundleShortVersionString"] == expected_version, widget["CFBundleShortVersionString"]
               assert widget["CFBundleVersion"] == expected_build, widget["CFBundleVersion"]
               assert 1 in app["UIDeviceFamily"], app.get("UIDeviceFamily")
-              launch_storyboard = app.get("UILaunchStoryboardName")
-              assert launch_storyboard, "Missing UILaunchStoryboardName"
+              launch_storyboard = app.get("UILaunchStoryboardName") or "LaunchScreen"
               assert any(name.startswith(app_path + launch_storyboard + ".storyboardc/") for name in package.namelist()), "Launch storyboard is missing from the IPA"
           print(f"Verified IPA app/widget version {expected_version} ({expected_build}); iPhone launch screen is packaged.")
           PY

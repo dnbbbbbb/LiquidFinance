@@ -20,6 +20,10 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+        excludes:
+          - LaunchScreen.storyboard
+      - path: Sources/LaunchScreen.storyboard
+        buildPhase: resources
       - path: Assets.xcassets
     info:
       path: LiquidFinance-Info.plist
@@ -32,6 +36,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: LiquidFinance.entitlements
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_EXPAND_BUILD_SETTINGS: YES
+        INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
     dependencies:
       - target: LiquidFinanceWidgets
         embed: true
