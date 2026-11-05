@@ -29,6 +29,14 @@ final class FinanceStore: ObservableObject {
     private let iCloudSyncDateKey = "finance.icloud.last-sync"
     private let widgetDefaults = UserDefaults(suiteName: "group.vn.liquidfinance")
 
+    /// Simulator unit-test hosts are intentionally unsigned, so CloudKit rejects their container.
+    /// Keep CloudKit out of that process; the production app still monitors and syncs normally.
+    private static var cloudKitDisabled: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["LIQUIDGLASS_DISABLE_CLOUDKIT"] == "1"
+            || environment["XCTestConfigurationFilePath"] != nil
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         let loadedTransactions = Self.decode([FinanceTransaction].self, from: defaults, key: "finance.transactions.v1") ?? []
@@ -53,7 +61,9 @@ final class FinanceStore: ObservableObject {
             defaults.set(Date.now, forKey: dataUpdatedKey)
         }
         syncWidgetSnapshot()
-        Task { await refreshICloudStatus() }
+        if !Self.cloudKitDisabled {
+            Task { await refreshICloudStatus() }
+        }
     }
 
     var balance: Double {
@@ -248,6 +258,7 @@ final class FinanceStore: ObservableObject {
     }
 
     func syncWithICloud() async {
+        guard !Self.cloudKitDisabled else { return }
         guard iCloudSyncEnabled else { return }
         await refreshICloudStatus()
         guard iCloudStatus != "Chưa đăng nhập iCloud" else { return }
@@ -284,6 +295,10 @@ final class FinanceStore: ObservableObject {
 
     /// Checks the Apple ID state separately from transfer work so Settings can show a useful status.
     func refreshICloudStatus() async {
+        guard !Self.cloudKitDisabled else {
+            iCloudStatus = "Chưa đăng nhập iCloud"
+            return
+        }
         do {
             let status = try await CKContainer(identifier: "iCloud.vn.liquidfinance.app").accountStatus()
             switch status {
