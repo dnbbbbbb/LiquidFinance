@@ -1,6 +1,5 @@
 import Foundation
 import Combine
-import CloudKit
 #if canImport(WidgetKit)
 import WidgetKit
 #endif
@@ -8,6 +7,7 @@ import WidgetKit
 @MainActor
 final class FinanceStore: ObservableObject {
     private static let iCloudContainerIdentifier = "iCloud.vn.liquidfinance.app"
+    private static let iCloudBackupFilename = "LiquidFinance-backup.json"
     @Published private(set) var transactions: [FinanceTransaction]
     @Published private(set) var budgets: [SpendingBudget]
     @Published private(set) var preferences: FinancePreferences
@@ -30,13 +30,17 @@ final class FinanceStore: ObservableObject {
     private let iCloudSyncDateKey = "finance.icloud.last-sync"
     private let widgetDefaults = UserDefaults(suiteName: "group.vn.liquidfinance")
 
-    /// Keep CloudKit out of unit-test processes. iOS does not expose a supported API for an app
-    /// to inspect its own signing entitlements at runtime, so entitlement validation belongs in
-    /// the signing pipeline rather than using macOS-only Security APIs in the app target.
-    private static var cloudKitDisabled: Bool {
-        let environment = ProcessInfo.processInfo.environment
-        return environment["LIQUIDFINANCE_DISABLE_CLOUDKIT"] == "1"
-            || environment["XCTestConfigurationFilePath"] != nil
+    /// Returns nil when iCloud Drive is disabled, no Apple ID is signed in, or the IPA was signed
+    /// without the ubiquity-container capability. Those are recoverable states, not crashes.
+    private static var iCloudBackupURL: URL? {
+        guard FileManager.default.ubiquityIdentityToken != nil,
+              let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: iCloudContainerIdentifier)
+        else {
+            return nil
+        }
+        return containerURL
+            .appendingPathComponent("Documents", isDirectory: true)
+            .appendingPathComponent(iCloudBackupFilename, isDirectory: false)
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -257,26 +261,28 @@ final class FinanceStore: ObservableObject {
     }
 
     func syncWithICloud() async {
-        guard !Self.cloudKitDisabled else { return }
         guard iCloudSyncEnabled else { return }
-        await refreshICloudStatus()
-        guard iCloudStatus != "Chưa đăng nhập iCloud" else { return }
+        guard let backupURL = Self.iCloudBackupURL else {
+            iCloudStatus = "iCloud Drive không khả dụng"
+            return
+        }
         iCloudStatus = "Đang đồng bộ"
         do {
             let local = try backupData()
             let localBackup = try JSONDecoder().decode(FinanceBackup.self, from: local)
-            let database = CKContainer(identifier: Self.iCloudContainerIdentifier).privateCloudDatabase
-            let recordID = CKRecord.ID(recordName: "liquidglass-finance-backup-v1")
-            let remoteRecord = try? await database.record(for: recordID)
-            if let remoteData = remoteRecord?["backup"] as? Data {
+            let fileManager = FileManager.default
+            try fileManager.createDirectory(at: backupURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            if fileManager.fileExists(atPath: backupURL.path) {
+                try? fileManager.startDownloadingUbiquitousItem(at: backupURL)
+                let remoteData = try Data(contentsOf: backupURL)
                 let remoteBackup = try JSONDecoder().decode(FinanceBackup.self, from: remoteData)
                 if remoteBackup.exportedAt > localBackup.exportedAt {
                     try restoreBackup(remoteData, scheduleSync: false)
                 } else if localBackup.exportedAt > remoteBackup.exportedAt {
-                    try await saveCloudBackup(local, to: remoteRecord ?? CKRecord(recordType: "FinanceBackup", recordID: recordID), database: database)
+                    try local.write(to: backupURL, options: .atomic)
                 }
             } else {
-                try await saveCloudBackup(local, to: CKRecord(recordType: "FinanceBackup", recordID: recordID), database: database)
+                try local.write(to: backupURL, options: .atomic)
             }
             lastICloudSyncDate = .now
             defaults.set(lastICloudSyncDate, forKey: iCloudSyncDateKey)
@@ -286,34 +292,14 @@ final class FinanceStore: ObservableObject {
         }
     }
 
-    private func saveCloudBackup(_ data: Data, to record: CKRecord, database: CKDatabase) async throws {
-        record["backup"] = data as NSData
-        record["updatedAt"] = Date.now as NSDate
-        _ = try await database.save(record)
-    }
-
-    /// Checks the Apple ID state separately from transfer work so Settings can show a useful status.
+    /// Checks iCloud Drive availability without creating a CloudKit client.
     func refreshICloudStatus() async {
-        guard !Self.cloudKitDisabled else {
-            iCloudStatus = "Chưa đăng nhập iCloud"
+        guard Self.iCloudBackupURL != nil else {
+            iCloudStatus = "iCloud Drive không khả dụng"
             return
         }
-        do {
-            let status = try await CKContainer(identifier: Self.iCloudContainerIdentifier).accountStatus()
-            switch status {
-            case .available:
-                if !iCloudSyncEnabled || iCloudStatus == "Chưa đăng nhập iCloud" || iCloudStatus == "Lỗi mạng" {
-                    iCloudStatus = "Đã cập nhật"
-                }
-            case .noAccount, .restricted:
-                iCloudStatus = "Chưa đăng nhập iCloud"
-            case .couldNotDetermine, .temporarilyUnavailable:
-                iCloudStatus = "Lỗi mạng"
-            @unknown default:
-                iCloudStatus = "Lỗi mạng"
-            }
-        } catch {
-            iCloudStatus = "Lỗi mạng"
+        if !iCloudSyncEnabled || iCloudStatus == "Chưa đăng nhập iCloud" || iCloudStatus == "Lỗi mạng" || iCloudStatus == "iCloud Drive không khả dụng" {
+            iCloudStatus = "Đã cập nhật"
         }
     }
 

@@ -274,7 +274,7 @@ struct SettingsView: View {
             }.buttonStyle(.plain)
             Divider().overlay(FinanceStyle.line)
             Toggle(isOn: Binding(get: { store.iCloudSyncEnabled }, set: { store.setICloudSyncEnabled($0) })) {
-                Label("Sao lưu và đồng bộ iCloud", systemImage: "icloud.and.arrow.up")
+                Label("Sao lưu và đồng bộ iCloud Drive", systemImage: "icloud.and.arrow.up")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(FinanceStyle.purple)
             }
@@ -295,7 +295,7 @@ struct SettingsView: View {
                 Text("Cập nhật lần cuối: \(DateText.dateTime(lastSync))")
                     .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
             }
-            Text("Tự động đồng bộ hai chiều qua Apple ID khi bạn bật iCloud. Bạn vẫn có thể xuất hoặc nhập JSON nếu không dùng iCloud Drive.")
+            Text("Đồng bộ bản sao lưu JSON qua iCloud Drive khi bạn bật tính năng này. Bạn vẫn có thể xuất hoặc nhập JSON nếu không dùng iCloud Drive.")
                 .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
             Divider().overlay(FinanceStyle.line)
             Button { confirmation = .reset } label: {
@@ -311,7 +311,7 @@ struct SettingsView: View {
         switch store.iCloudStatus {
         case "Đang đồng bộ": return "arrow.triangle.2.circlepath.icloud"
         case "Đã cập nhật": return "checkmark.icloud.fill"
-        case "Chưa đăng nhập iCloud": return "icloud.slash"
+        case "Chưa đăng nhập iCloud", "iCloud Drive không khả dụng": return "icloud.slash"
         default: return "exclamationmark.icloud.fill"
         }
     }
@@ -319,7 +319,7 @@ struct SettingsView: View {
     private var iCloudStatusColor: Color {
         switch store.iCloudStatus {
         case "Đã cập nhật": return FinanceStyle.green
-        case "Lỗi mạng", "Chưa đăng nhập iCloud": return FinanceStyle.red
+        case "Lỗi mạng", "Chưa đăng nhập iCloud", "iCloud Drive không khả dụng": return FinanceStyle.red
         default: return FinanceStyle.purple
         }
     }
