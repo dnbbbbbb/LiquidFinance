@@ -267,10 +267,22 @@ private struct MonthYearPicker: View {
                 Picker("Năm", selection: $selectedYear) {
                     ForEach(years, id: \.self) { Text(String($0)).tag($0) }
                 }
-                Button("Tháng hiện tại") {
-                    let now = Date.now
-                    selectedMonth = Calendar.current.component(.month, from: now)
-                    selectedYear = Calendar.current.component(.year, from: now)
+                HStack {
+                    Spacer(minLength: 0)
+                    Button {
+                        let now = Date.now
+                        selectedMonth = Calendar.current.component(.month, from: now)
+                        selectedYear = Calendar.current.component(.year, from: now)
+                    } label: {
+                        Label("Tháng hiện tại", systemImage: "calendar.badge.clock")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 11)
+                            .background(FinanceStyle.purple, in: Capsule())
+                    }
+                    .frame(maxWidth: .infinity)
+                    Spacer(minLength: 0)
                 }
             }
             .navigationTitle("Chọn tháng")

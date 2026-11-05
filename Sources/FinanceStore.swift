@@ -58,12 +58,12 @@ final class FinanceStore: ObservableObject {
     }
 
     func total(for type: TransactionType, from start: Date, through end: Date) -> Double {
-        transactions(from: start, through: end).filter { $0.type == type && $0.transferID == nil }.reduce(0) { $0 + $1.amount }
+        transactions(from: start, through: end).filter { $0.type == type && $0.transferID == nil && $0.includeInReports }.reduce(0) { $0 + $1.amount }
     }
 
     func total(for type: TransactionType, in month: Date, calendar: Calendar = .current) -> Double {
         transactions(in: month, calendar: calendar)
-            .filter { $0.type == type && $0.transferID == nil }
+            .filter { $0.type == type && $0.transferID == nil && $0.includeInReports }
             .reduce(0) { $0 + $1.amount }
     }
 
@@ -75,6 +75,13 @@ final class FinanceStore: ObservableObject {
     func spent(for category: FinanceCategory, from start: Date, through end: Date) -> Double {
         let categoryIDs = Set([category.id] + categories.filter { $0.parentID == category.id }.map(\.id))
         return spent(categoryIDs: categoryIDs, from: start, through: end)
+    }
+
+    func reportSpent(for category: FinanceCategory, from start: Date, through end: Date) -> Double {
+        let categoryIDs = Set([category.id] + categories.filter { $0.parentID == category.id }.map(\.id))
+        return transactions(from: start, through: end)
+            .filter { $0.type == .expense && $0.transferID == nil && $0.includeInReports && categoryIDs.contains($0.category.id) }
+            .reduce(0) { $0 + $1.amount }
     }
 
     private func spent(categoryIDs: Set<String>, from start: Date, through end: Date) -> Double {

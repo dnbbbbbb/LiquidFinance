@@ -34,7 +34,7 @@ struct ReportsView: View {
     private var monthIncome: Double { store.total(for: .income, from: effectiveStart, through: effectiveEnd) }
     private var categoryTotals: [CategorySpend] {
         store.categories(for: .expense).filter { $0.parentID == nil }
-            .map { CategorySpend(category: $0, amount: store.spent(for: $0, from: effectiveStart, through: effectiveEnd)) }
+            .map { CategorySpend(category: $0, amount: store.reportSpent(for: $0, from: effectiveStart, through: effectiveEnd)) }
             .filter { $0.amount > 0 }
             .sorted { $0.amount > $1.amount }
     }

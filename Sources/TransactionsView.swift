@@ -146,6 +146,7 @@ struct TransactionEditorView: View {
     @State private var category: FinanceCategory
     @State private var walletID: UUID
     @State private var note: String
+    @State private var includeInReports: Bool
     @State private var usesCategoryAsTitle: Bool
     @State private var isRecurring: Bool
     @State private var recurrenceFrequency: RecurrenceFrequency
@@ -164,6 +165,7 @@ struct TransactionEditorView: View {
         let existingWallet = store.wallets.first(where: { $0.id == transaction?.walletID }) ?? store.wallets.first(where: { $0.name == transaction?.account })
         _walletID = State(initialValue: existingWallet?.id ?? store.wallets.first?.id ?? UUID())
         _note = State(initialValue: transaction?.note ?? "")
+        _includeInReports = State(initialValue: transaction?.includeInReports ?? true)
         _usesCategoryAsTitle = State(initialValue: transaction.map { $0.title == $0.category.name } ?? true)
         let existingRule = store.recurringRules.first(where: { $0.id == transaction?.recurrenceID })
         _isRecurring = State(initialValue: existingRule != nil)
@@ -254,6 +256,12 @@ struct TransactionEditorView: View {
                 Section("Ghi chú") {
                     TextField("Thêm thông tin (không bắt buộc)", text: $note, axis: .vertical)
                         .lineLimit(2...4)
+                }
+
+                Section("Báo cáo") {
+                    Toggle("Tính giao dịch này vào báo cáo", isOn: $includeInReports)
+                    Text("Tắt để loại khoản này khỏi tổng thu chi và biểu đồ. Số dư ví vẫn được cập nhật.")
+                        .font(.footnote).foregroundStyle(FinanceStyle.muted)
                 }
 
                 Section("Giao dịch định kỳ") {
@@ -361,6 +369,7 @@ struct TransactionEditorView: View {
             saved.walletID = wallet.id
         }
         saved.note = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        saved.includeInReports = includeInReports
         if isRecurring {
             let ruleID = transaction?.recurrenceID ?? UUID()
             saved.recurrenceID = ruleID

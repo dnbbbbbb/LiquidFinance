@@ -20,6 +20,7 @@
 - Chọn biểu tượng khi tạo danh mục; tám danh mục dùng nhiều nhất hiển thị trước trong biểu mẫu giao dịch.
 - V3.2 bổ sung chuyển khoản nội bộ, ngân sách theo tuần/tháng/quý/năm, cảnh báo mức dùng 80%, biểu đồ theo ngày hoặc tháng và widget số dư/nhập nhanh.
 - V3.5 đồng bộ version trong app, extension widget, IPA và GitHub Release; kiểm tra launch screen iPhone được đóng gói.
+- V3.6 cho phép loại giao dịch khỏi báo cáo mà vẫn cập nhật số dư; nút về tháng hiện tại được làm nổi bật và căn giữa.
 - Widget dùng App Group `group.vn.liquidfinance`; hãy bật App Groups với định danh này cho app và widget trong Apple Developer nếu tạo IPA đã ký.
 - Lưu trữ cục bộ bằng `UserDefaults`; không cần đăng nhập hoặc kết nối mạng.
 
@@ -36,15 +37,15 @@ Chọn scheme `LiquidFinance` và một iPhone Simulator để chạy app hoặc
 
 ## GitHub Actions
 
-Workflow `.github/workflows/ios.yml` tự chọn iPhone Simulator đang có để chạy unit tests trên mỗi push và pull request. Mỗi push lên `main` hoặc `master` tạo GitHub Release theo version tăng dần `v3.5.<run>` cùng IPA có tên version đó, ví dụ `LiquidFinance-v3.5.42.ipa`. Push một tag `v3.5.0` sẽ tạo/cập nhật release và IPA mang version đó.
+Workflow `.github/workflows/ios.yml` tự chọn iPhone Simulator đang có để chạy unit tests trên mỗi push và pull request. Mỗi push lên `main` hoặc `master` tạo GitHub Release theo version tăng dần `v3.6.<run>` cùng IPA có tên version đó, ví dụ `LiquidFinance-v3.6.42.ipa`. Push một tag `v3.6.0` sẽ tạo/cập nhật release và IPA mang version đó.
 
 Nếu chưa thêm thông tin ký, release vẫn nhận IPA chưa ký; tệp chưa ký không cài trực tiếp lên iPhone thật. Để tạo IPA đã ký, thêm các repository secrets: `IOS_CERTIFICATE_BASE64` (tệp `.p12` dạng base64), `IOS_CERTIFICATE_PASSWORD`, `IOS_PROVISIONING_PROFILE_BASE64` (profile dạng base64), `IOS_PROFILE_NAME` (tên profile), và `IOS_TEAM_ID`. Secret tùy chọn `IOS_EXPORT_METHOD` nhận `ad-hoc` (mặc định), `development`, `enterprise` hoặc `app-store-connect`. Certificate, profile, team và bundle ID `vn.liquidfinance.app` phải khớp nhau.
 
 Có thể tạo release phiên bản riêng bằng:
 
 ```sh
-git tag v3.5.0
-git push origin v3.5.0
+git tag v3.6.0
+git push origin v3.6.0
 ```
 
 ## Kiểm thử

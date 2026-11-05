@@ -78,6 +78,7 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
     var recurrenceID: UUID?
     var transferID: UUID?
     var note: String
+    var includeInReports: Bool
 
     init(
         id: UUID = UUID(),
@@ -90,7 +91,8 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
         walletID: UUID? = nil,
         recurrenceID: UUID? = nil,
         transferID: UUID? = nil,
-        note: String = ""
+        note: String = "",
+        includeInReports: Bool = true
     ) {
         self.id = id
         self.title = title
@@ -103,9 +105,10 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
         self.recurrenceID = recurrenceID
         self.transferID = transferID
         self.note = note
+        self.includeInReports = includeInReports
     }
 
-    private enum CodingKeys: String, CodingKey { case id, title, amount, date, type, category, account, walletID, recurrenceID, transferID, note }
+    private enum CodingKeys: String, CodingKey { case id, title, amount, date, type, category, account, walletID, recurrenceID, transferID, note, includeInReports }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -121,6 +124,7 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
         recurrenceID = try values.decodeIfPresent(UUID.self, forKey: .recurrenceID)
         transferID = try values.decodeIfPresent(UUID.self, forKey: .transferID)
         note = try values.decodeIfPresent(String.self, forKey: .note) ?? ""
+        includeInReports = try values.decodeIfPresent(Bool.self, forKey: .includeInReports) ?? true
     }
 }
 
