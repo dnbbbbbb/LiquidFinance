@@ -1,12 +1,14 @@
 import Foundation
 import Combine
 import CloudKit
+import Security
 #if canImport(WidgetKit)
 import WidgetKit
 #endif
 
 @MainActor
 final class FinanceStore: ObservableObject {
+    private static let iCloudContainerIdentifier = "iCloud.vn.liquidfinance.app"
     @Published private(set) var transactions: [FinanceTransaction]
     @Published private(set) var budgets: [SpendingBudget]
     @Published private(set) var preferences: FinancePreferences
@@ -29,12 +31,28 @@ final class FinanceStore: ObservableObject {
     private let iCloudSyncDateKey = "finance.icloud.last-sync"
     private let widgetDefaults = UserDefaults(suiteName: "group.vn.liquidfinance")
 
-    /// Simulator unit-test hosts are intentionally unsigned, so CloudKit rejects their container.
-    /// Keep CloudKit out of that process; the production app still monitors and syncs normally.
+    /// CloudKit may terminate the process before an async error is delivered when the installed
+    /// signature does not grant this container. This is common after an IPA is re-signed with a
+    /// valid certificate/profile that does not include the app's iCloud capability. Never create
+    /// a CKContainer unless this entitlement is present in the running app.
     private static var cloudKitDisabled: Bool {
         let environment = ProcessInfo.processInfo.environment
         return environment["LIQUIDFINANCE_DISABLE_CLOUDKIT"] == "1"
             || environment["XCTestConfigurationFilePath"] != nil
+            || !hasICloudContainerEntitlement
+    }
+
+    private static var hasICloudContainerEntitlement: Bool {
+        guard let task = SecTaskCreateFromSelf(nil),
+              let containers = SecTaskCopyValueForEntitlement(
+                  task,
+                  "com.apple.developer.icloud-container-identifiers" as CFString,
+                  nil
+              ) as? [String]
+        else {
+            return false
+        }
+        return containers.contains(iCloudContainerIdentifier)
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -266,7 +284,7 @@ final class FinanceStore: ObservableObject {
         do {
             let local = try backupData()
             let localBackup = try JSONDecoder().decode(FinanceBackup.self, from: local)
-            let database = CKContainer(identifier: "iCloud.vn.liquidfinance.app").privateCloudDatabase
+            let database = CKContainer(identifier: Self.iCloudContainerIdentifier).privateCloudDatabase
             let recordID = CKRecord.ID(recordName: "liquidglass-finance-backup-v1")
             let remoteRecord = try? await database.record(for: recordID)
             if let remoteData = remoteRecord?["backup"] as? Data {
@@ -300,7 +318,7 @@ final class FinanceStore: ObservableObject {
             return
         }
         do {
-            let status = try await CKContainer(identifier: "iCloud.vn.liquidfinance.app").accountStatus()
+            let status = try await CKContainer(identifier: Self.iCloudContainerIdentifier).accountStatus()
             switch status {
             case .available:
                 if !iCloudSyncEnabled || iCloudStatus == "Chưa đăng nhập iCloud" || iCloudStatus == "Lỗi mạng" {
