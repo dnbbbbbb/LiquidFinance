@@ -49,19 +49,17 @@ struct FinanceCategory: Codable, Equatable, Hashable, Identifiable {
         if let legacy = try? decoder.singleValueContainer().decode(String.self) {
             let existing = Self.defaults.first { $0.name == legacy && $0.type == .expense }
             let match = existing ?? Self.defaults.first { $0.name == legacy && $0.type == .income }
-            guard let match else {
-                self.init(name: legacy, type: .expense)
-                return
-            }
-            self = match
+            self = match ?? FinanceCategory(name: legacy, type: .expense)
             return
         }
         let values = try decoder.container(keyedBy: CodingKeys.self)
-        id = try values.decode(String.self, forKey: .id)
-        name = try values.decode(String.self, forKey: .name)
-        type = try values.decode(TransactionType.self, forKey: .type)
-        parentID = try values.decodeIfPresent(String.self, forKey: .parentID)
-        symbol = try values.decodeIfPresent(String.self, forKey: .symbol) ?? "circle.grid.2x2.fill"
+        self.init(
+            id: try values.decode(String.self, forKey: .id),
+            name: try values.decode(String.self, forKey: .name),
+            type: try values.decode(TransactionType.self, forKey: .type),
+            parentID: try values.decodeIfPresent(String.self, forKey: .parentID),
+            symbol: try values.decodeIfPresent(String.self, forKey: .symbol) ?? "circle.grid.2x2.fill"
+        )
     }
 }
 
