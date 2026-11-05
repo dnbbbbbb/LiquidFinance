@@ -6,7 +6,7 @@ import SwiftData
 final class FinanceCloudSnapshot {
     var identifier: String = "primary"
     var payload: Data = Data()
-    var modifiedAt: Date = .now
+    var modifiedAt: Date = Date.now
 
     init(payload: Data, modifiedAt: Date = .now) {
         self.payload = payload
