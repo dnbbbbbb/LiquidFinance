@@ -73,6 +73,10 @@ targets:
     platform: iOS
     sources:
       - path: Tests
+    info:
+      path: Tests/Info.plist
+      properties:
+        CFBundleDisplayName: LiquidFinanceTests
     dependencies:
       - target: LiquidFinance
     settings:
