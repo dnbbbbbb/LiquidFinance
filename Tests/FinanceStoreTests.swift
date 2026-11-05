@@ -174,4 +174,13 @@ final class FinanceStoreTests: XCTestCase {
         let restored = FinanceStore(defaults: defaults)
         XCTAssertEqual(restored.recurringRules, store.recurringRules)
     }
+
+    func testWeekdayRecurrenceSkipsWeekend() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let friday = calendar.date(from: DateComponents(year: 2025, month: 1, day: 3, hour: 20))!
+        let monday = calendar.date(from: DateComponents(year: 2025, month: 1, day: 6, hour: 20))!
+
+        XCTAssertEqual(RecurrenceFrequency.weekdays.next(after: friday, calendar: calendar), monday)
+    }
 }

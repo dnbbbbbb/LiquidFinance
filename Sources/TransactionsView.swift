@@ -147,6 +147,7 @@ struct TransactionEditorView: View {
     @State private var category: FinanceCategory
     @State private var walletID: UUID
     @State private var note: String
+    @State private var usesCategoryAsTitle: Bool
     @State private var isRecurring: Bool
     @State private var recurrenceFrequency: RecurrenceFrequency
     @State private var showingValidationError = false
@@ -162,6 +163,7 @@ struct TransactionEditorView: View {
         let existingWallet = store.wallets.first(where: { $0.id == transaction?.walletID }) ?? store.wallets.first(where: { $0.name == transaction?.account })
         _walletID = State(initialValue: existingWallet?.id ?? store.wallets.first?.id ?? UUID())
         _note = State(initialValue: transaction?.note ?? "")
+        _usesCategoryAsTitle = State(initialValue: transaction.map { $0.title == $0.category.name } ?? true)
         let existingRule = store.recurringRules.first(where: { $0.id == transaction?.recurrenceID })
         _isRecurring = State(initialValue: existingRule != nil)
         _recurrenceFrequency = State(initialValue: existingRule?.frequency ?? .monthly)
@@ -212,7 +214,7 @@ struct TransactionEditorView: View {
                 Section("Danh mục") {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 10) {
                         ForEach(favouriteCategories) { item in
-                            Button { category = item } label: {
+                            Button { selectCategory(item) } label: {
                                 VStack(spacing: 7) {
                                     CategoryIcon(category: item, size: 42)
                                     Text(categoryTitle(item))
@@ -236,6 +238,9 @@ struct TransactionEditorView: View {
                                 ForEach(categories) { item in
                                     Text(categoryTitle(item)).tag(item)
                                 }
+                            }
+                            .onChange(of: category) { item in
+                                updateAutomaticTitle(for: item)
                             }
                         }
                     }
@@ -275,8 +280,12 @@ struct TransactionEditorView: View {
             }
             .onChange(of: type) { newType in
                 if !categoriesFor(newType).contains(category) {
-                    category = categoriesFor(newType).first ?? .other
+                    selectCategory(categoriesFor(newType).first ?? .other)
                 }
+            }
+            .onChange(of: title) { value in
+                let clean = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                usesCategoryAsTitle = clean.isEmpty || clean == category.name
             }
             .alert("Chưa thể lưu giao dịch", isPresented: $showingValidationError) {
                 Button("Đã hiểu", role: .cancel) { }
@@ -296,6 +305,15 @@ struct TransactionEditorView: View {
     private func categoryTitle(_ item: FinanceCategory) -> String {
         guard let parentID = item.parentID, let parent = store.categories.first(where: { $0.id == parentID }) else { return item.name }
         return "\(parent.name) › \(item.name)"
+    }
+
+    private func selectCategory(_ item: FinanceCategory) {
+        category = item
+        updateAutomaticTitle(for: item)
+    }
+
+    private func updateAutomaticTitle(for item: FinanceCategory) {
+        if usesCategoryAsTitle { title = item.name }
     }
 
     private func save() {
