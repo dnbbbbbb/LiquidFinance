@@ -6,11 +6,16 @@
 
 - Tổng quan số dư, thu nhập và chi tiêu theo tháng; tùy chọn ẩn số dư.
 - Ghi, sửa, tìm kiếm và lọc giao dịch; phân loại thu nhập và chi tiêu.
+- Nhập số tiền với dấu phân tách hàng nghìn tức thời; chọn ngày và giờ giao dịch.
+- Lọc giao dịch và báo cáo theo khoảng ngày/giờ tùy chọn, hoặc xem không giới hạn.
+- Lập giao dịch định kỳ theo ngày, tuần, tháng hoặc năm; quản lý, tạm dừng và xóa lịch định kỳ.
 - Ngân sách theo danh mục với tiến độ và cảnh báo khi vượt giới hạn.
+- Mỗi ngân sách có thể áp dụng cho một, nhiều hoặc tất cả danh mục.
 - Báo cáo 6 tháng và cơ cấu chi tiêu theo danh mục.
 - Danh mục cha/con có thể tùy chỉnh; ví tiền mặt, ngân hàng, thẻ và ví điện tử.
 - Sao lưu/khôi phục toàn bộ dữ liệu JSON, xuất giao dịch CSV và xóa dữ liệu.
 - Chọn giao diện sáng, tối hoặc tự động theo thiết bị.
+- Nhắc nhập giao dịch cuối ngày với giờ do bạn chọn.
 - Lưu trữ cục bộ bằng `UserDefaults`; không cần đăng nhập hoặc kết nối mạng.
 
 ## Mở bằng Xcode
@@ -26,20 +31,20 @@ Chọn scheme `LiquidFinance` và một iPhone Simulator để chạy app hoặc
 
 ## GitHub Actions
 
-Workflow `.github/workflows/ios.yml` tự chọn iPhone Simulator đang có để chạy unit tests. Khi push tag phiên bản dạng `v1.0.0`, workflow build IPA, đặt tên `LiquidFinance-v1.0.0.ipa` và đính kèm vào GitHub Release tương ứng.
+Workflow `.github/workflows/ios.yml` tự chọn iPhone Simulator đang có để chạy unit tests trên mỗi push và pull request. Mỗi push lên `main` hoặc `master` tạo GitHub Release theo version tăng dần `v2.0.<run>` cùng IPA có tên version đó, ví dụ `LiquidFinance-v2.0.42.ipa`. Push một tag `v*` sẽ tạo/cập nhật release và IPA mang version của tag, ví dụ `LiquidFinance-v2.1.0.ipa`.
 
-Nếu chưa thêm thông tin ký, release vẫn nhận IPA chưa ký `LiquidFinance-v1.0.0.ipa`; tệp chưa ký không cài trực tiếp lên iPhone thật. Để tạo IPA đã ký, thêm các repository secrets: `IOS_CERTIFICATE_BASE64` (tệp `.p12` dạng base64), `IOS_CERTIFICATE_PASSWORD`, `IOS_PROVISIONING_PROFILE_BASE64` (profile dạng base64), `IOS_PROFILE_NAME` (tên profile), và `IOS_TEAM_ID`. Secret tùy chọn `IOS_EXPORT_METHOD` nhận `ad-hoc` (mặc định), `development`, `enterprise` hoặc `app-store-connect`. Certificate, profile, team và bundle ID `vn.liquidfinance.app` phải khớp nhau.
+Nếu chưa thêm thông tin ký, release vẫn nhận IPA chưa ký; tệp chưa ký không cài trực tiếp lên iPhone thật. Để tạo IPA đã ký, thêm các repository secrets: `IOS_CERTIFICATE_BASE64` (tệp `.p12` dạng base64), `IOS_CERTIFICATE_PASSWORD`, `IOS_PROVISIONING_PROFILE_BASE64` (profile dạng base64), `IOS_PROFILE_NAME` (tên profile), và `IOS_TEAM_ID`. Secret tùy chọn `IOS_EXPORT_METHOD` nhận `ad-hoc` (mặc định), `development`, `enterprise` hoặc `app-store-connect`. Certificate, profile, team và bundle ID `vn.liquidfinance.app` phải khớp nhau.
 
-Tạo release bằng:
+Có thể tạo release phiên bản riêng bằng:
 
 ```sh
-git tag v1.0.0
-git push origin v1.0.0
+git tag v2.1.0
+git push origin v2.1.0
 ```
 
 ## Kiểm thử
 
-Unit tests kiểm tra số dư, tổng theo tháng, cập nhật giao dịch/ngân sách, phân cấp danh mục, số dư ví, sao lưu/khôi phục và schema backup. Chạy trên máy Mac có Xcode:
+Unit tests kiểm tra số dư, tổng theo tháng và khoảng thời gian, cập nhật giao dịch/ngân sách, phân cấp và nhiều danh mục, định dạng số tiền, giao dịch định kỳ, số dư ví, sao lưu/khôi phục và schema backup. Chạy trên máy Mac có Xcode:
 
 ```sh
 SIMULATOR_ID="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ { print $2; exit }')"

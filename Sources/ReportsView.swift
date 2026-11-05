@@ -17,20 +17,36 @@ private struct CategorySpend: Identifiable {
 struct ReportsView: View {
     @ObservedObject var store: FinanceStore
     @State private var month = Date()
+    @State private var timeFilterEnabled = true
+    @State private var rangeStart = FinanceDate.startOfMonth(containing: .now)
+    @State private var rangeEnd = Date.now
 
-    private var monthExpense: Double { store.total(for: .expense, in: month) }
-    private var monthIncome: Double { store.total(for: .income, in: month) }
+    private var effectiveStart: Date { timeFilterEnabled ? min(rangeStart, rangeEnd) : .distantPast }
+    private var effectiveEnd: Date { timeFilterEnabled ? max(rangeStart, rangeEnd) : .distantFuture }
+    private var monthExpense: Double { store.total(for: .expense, from: effectiveStart, through: effectiveEnd) }
+    private var monthIncome: Double { store.total(for: .income, from: effectiveStart, through: effectiveEnd) }
     private var categoryTotals: [CategorySpend] {
         store.categories(for: .expense).filter { $0.parentID == nil }
-            .map { CategorySpend(category: $0, amount: store.spent(for: $0, in: month)) }
+            .map { CategorySpend(category: $0, amount: store.spent(for: $0, from: effectiveStart, through: effectiveEnd)) }
             .filter { $0.amount > 0 }
             .sorted { $0.amount > $1.amount }
     }
     private var monthlySeries: [MonthlySpend] {
         let calendar = Calendar.current
-        return (0..<6).reversed().compactMap { offset in
-            guard let date = calendar.date(byAdding: .month, value: -offset, to: FinanceDate.startOfMonth(containing: month)) else { return nil }
-            return MonthlySpend(date: date, label: DateText.compactMonth(date), amount: store.total(for: .expense, in: date))
+        let currentMonth = FinanceDate.startOfMonth(containing: month)
+        let firstMonth = timeFilterEnabled
+            ? FinanceDate.startOfMonth(containing: min(rangeStart, rangeEnd))
+            : (calendar.date(byAdding: .month, value: -5, to: currentMonth) ?? currentMonth)
+        let lastMonth = timeFilterEnabled
+            ? FinanceDate.startOfMonth(containing: max(rangeStart, rangeEnd))
+            : currentMonth
+        let monthCount = max(1, (calendar.dateComponents([.month], from: firstMonth, to: lastMonth).month ?? 0) + 1)
+        return (0..<monthCount).compactMap { offset in
+            guard let date = calendar.date(byAdding: .month, value: offset, to: firstMonth),
+                  let nextMonth = calendar.date(byAdding: .month, value: 1, to: date) else { return nil }
+            let start = timeFilterEnabled ? max(date, min(rangeStart, rangeEnd)) : date
+            let end = timeFilterEnabled ? min(nextMonth.addingTimeInterval(-1), max(rangeStart, rangeEnd)) : nextMonth.addingTimeInterval(-1)
+            return MonthlySpend(date: date, label: DateText.compactMonth(date), amount: store.total(for: .expense, from: start, through: end))
         }
     }
 
@@ -38,7 +54,7 @@ struct ReportsView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 20) {
                 header
-                monthPicker
+                DateRangeFilterView(isEnabled: $timeFilterEnabled, start: $rangeStart, end: $rangeEnd)
                 summaryCards
                 trendCard
                 categoriesCard
@@ -108,7 +124,7 @@ struct ReportsView: View {
 
     private var trendCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            SectionHeading(title: "Chi tiêu 6 tháng")
+            SectionHeading(title: timeFilterEnabled ? "Chi tiêu theo tháng" : "Chi tiêu 6 tháng")
             if monthlySeries.allSatisfy({ $0.amount == 0 }) {
                 EmptyState(symbol: "chart.bar", title: "Biểu đồ đang chờ dữ liệu", message: "Các khoản chi sẽ xuất hiện tại đây.")
             } else {

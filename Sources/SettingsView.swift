@@ -12,8 +12,10 @@ struct SettingsView: View {
     @State private var backupToRestore: Data?
     @State private var management: ManagementSheet?
     @State private var confirmation: Confirmation?
+    @State private var reminderTime = Date()
+    @State private var notificationUnavailable = false
 
-    private enum ManagementSheet: String, Identifiable { case categories, wallets; var id: String { rawValue } }
+    private enum ManagementSheet: String, Identifiable { case categories, wallets, recurring; var id: String { rawValue } }
     private enum Confirmation: Equatable { case reset, restore }
 
     private struct CurrencyOption: Identifiable {
@@ -45,7 +47,16 @@ struct SettingsView: View {
             .padding(.bottom, 110)
         }
         .background(FinanceStyle.background.ignoresSafeArea())
-        .onAppear { openingBalanceText = String(store.preferences.openingBalance) }
+        .onAppear {
+            openingBalanceText = AmountInput.format(store.preferences.openingBalance)
+            reminderTime = Calendar.current.date(bySettingHour: store.preferences.reminderHour, minute: store.preferences.reminderMinute, second: 0, of: .now) ?? .now
+            if store.preferences.reminderEnabled { scheduleReminder(true) }
+        }
+        .onChange(of: reminderTime) { value in
+            let parts = Calendar.current.dateComponents([.hour, .minute], from: value)
+            store.updatePreferences { $0.reminderHour = parts.hour ?? 20; $0.reminderMinute = parts.minute ?? 0 }
+            if store.preferences.reminderEnabled { scheduleReminder(true) }
+        }
         .sheet(isPresented: $showingShareSheet) {
             if let exportURL {
                 ActivityShareSheet(items: [exportURL])
@@ -57,6 +68,7 @@ struct SettingsView: View {
             switch item {
             case .categories: CategoryManagementView(store: store)
             case .wallets: WalletManagementView(store: store)
+            case .recurring: RecurringManagementView(store: store)
             }
         }
         .fileImporter(isPresented: $showingImportPicker, allowedContentTypes: [.json], allowsMultipleSelection: false) { result in
@@ -74,7 +86,7 @@ struct SettingsView: View {
                     guard let backupToRestore else { return }
                     do {
                         try store.restoreBackup(backupToRestore)
-                        openingBalanceText = String(store.preferences.openingBalance)
+                        openingBalanceText = AmountInput.format(store.preferences.openingBalance)
                     } catch { showingExportError = true }
                     self.backupToRestore = nil
                     confirmation = nil
@@ -126,10 +138,7 @@ struct SettingsView: View {
                 .font(.system(size: 13))
                 .foregroundStyle(FinanceStyle.muted)
             HStack(spacing: 10) {
-                TextField("0", text: $openingBalanceText)
-                    .keyboardType(.decimalPad)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .accessibilityLabel("Số dư ban đầu chưa gán ví")
+                AmountTextField(text: $openingBalanceText, fontSize: 20).frame(height: 34).accessibilityLabel("Số dư ban đầu chưa gán ví")
                 Text(store.preferences.currencyCode)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(FinanceStyle.muted)
@@ -195,6 +204,21 @@ struct SettingsView: View {
                     .foregroundStyle(FinanceStyle.ink)
             }
             .tint(FinanceStyle.purple)
+            Divider().overlay(FinanceStyle.line).padding(.vertical, 8)
+            Toggle("Nhắc nhập liệu cuối ngày", isOn: Binding(
+                get: { store.preferences.reminderEnabled },
+                set: { value in
+                    store.updatePreferences { $0.reminderEnabled = value }
+                    scheduleReminder(value)
+                }
+            )).tint(FinanceStyle.purple)
+            if store.preferences.reminderEnabled {
+                DatePicker("Thông báo lúc", selection: $reminderTime, displayedComponents: .hourAndMinute)
+            }
+            if notificationUnavailable {
+                Text("Hãy cho phép thông báo trong Cài đặt iPhone để nhận nhắc nhở.")
+                    .font(.system(size: 12)).foregroundStyle(FinanceStyle.red)
+            }
         }
         .padding(17)
         .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -218,6 +242,10 @@ struct SettingsView: View {
             Divider().overlay(FinanceStyle.line)
             Button { management = .wallets } label: {
                 settingsActionRow(icon: "wallet.bifold", title: "Ví và nguồn tiền", color: FinanceStyle.purple)
+            }.buttonStyle(.plain)
+            Divider().overlay(FinanceStyle.line)
+            Button { management = .recurring } label: {
+                settingsActionRow(icon: "arrow.clockwise", title: "Giao dịch định kỳ", color: FinanceStyle.purple)
             }.buttonStyle(.plain)
         }
         .padding(17)
@@ -270,7 +298,7 @@ struct SettingsView: View {
             Text("Liquid Finance")
                 .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(FinanceStyle.ink)
-            Text("Đơn giản, riêng tư, dành cho bạn · Phiên bản 1.0.0")
+            Text("Đơn giản, riêng tư, dành cho bạn · Phiên bản 2.0.0")
                 .font(.system(size: 12))
                 .foregroundStyle(FinanceStyle.muted)
             Text("Dữ liệu lưu trên thiết bị. Hãy xuất và cất tệp sao lưu ngoài ứng dụng để khôi phục sau khi cài lại.")
@@ -283,9 +311,20 @@ struct SettingsView: View {
     }
 
     private func saveOpeningBalance() {
-        let value = openingBalanceText.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: ".")
-        guard let amount = Double(value) else { return }
+        guard let amount = AmountInput.parse(openingBalanceText) else { return }
         store.updatePreferences { $0.openingBalance = amount }
+    }
+
+    private func scheduleReminder(_ enabled: Bool) {
+        let hour = store.preferences.reminderHour
+        let minute = store.preferences.reminderMinute
+        Task {
+            let success = await DailyReminder.configure(enabled: enabled, hour: hour, minute: minute)
+            await MainActor.run {
+                notificationUnavailable = enabled && !success
+                if enabled && !success { store.updatePreferences { $0.reminderEnabled = false } }
+            }
+        }
     }
 
     private func exportCSV() {

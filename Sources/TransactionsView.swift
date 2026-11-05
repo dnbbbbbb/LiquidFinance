@@ -11,12 +11,16 @@ struct TransactionsView: View {
     @ObservedObject var store: FinanceStore
     @State private var searchText = ""
     @State private var filter: TransactionFilter = .all
+    @State private var timeFilterEnabled = false
+    @State private var rangeStart = Calendar.current.date(byAdding: .month, value: -1, to: .now) ?? .now
+    @State private var rangeEnd = Date.now
     @State private var editingTransaction: FinanceTransaction?
 
     private var filteredTransactions: [FinanceTransaction] {
         store.transactions
             .filter { transaction in
                 (filter == .all || (filter == .expense && transaction.type == .expense) || (filter == .income && transaction.type == .income))
+                    && (!timeFilterEnabled || (transaction.date >= min(rangeStart, rangeEnd) && transaction.date <= max(rangeStart, rangeEnd)))
                     && (searchText.isEmpty || transaction.title.localizedCaseInsensitiveContains(searchText)
                         || transaction.category.rawValue.localizedCaseInsensitiveContains(searchText)
                         || transaction.note.localizedCaseInsensitiveContains(searchText))
@@ -30,6 +34,7 @@ struct TransactionsView: View {
                 pageHeader
                 searchField
                 filterPicker
+                DateRangeFilterView(isEnabled: $timeFilterEnabled, start: $rangeStart, end: $rangeEnd)
 
                 if filteredTransactions.isEmpty {
                     EmptyState(
@@ -134,6 +139,8 @@ struct TransactionEditorView: View {
     @State private var category: FinanceCategory
     @State private var walletID: UUID
     @State private var note: String
+    @State private var isRecurring: Bool
+    @State private var recurrenceFrequency: RecurrenceFrequency
     @State private var showingValidationError = false
 
     init(store: FinanceStore, transaction: FinanceTransaction? = nil) {
@@ -141,12 +148,15 @@ struct TransactionEditorView: View {
         self.transaction = transaction
         _type = State(initialValue: transaction?.type ?? .expense)
         _title = State(initialValue: transaction?.title ?? "")
-        _amountText = State(initialValue: transaction.map { String($0.amount) } ?? "")
+        _amountText = State(initialValue: transaction.map { AmountInput.format($0.amount) } ?? "")
         _date = State(initialValue: transaction?.date ?? .now)
         _category = State(initialValue: transaction?.category ?? .food)
         let existingWallet = store.wallets.first(where: { $0.id == transaction?.walletID }) ?? store.wallets.first(where: { $0.name == transaction?.account })
         _walletID = State(initialValue: existingWallet?.id ?? store.wallets.first?.id ?? UUID())
         _note = State(initialValue: transaction?.note ?? "")
+        let existingRule = store.recurringRules.first(where: { $0.id == transaction?.recurrenceID })
+        _isRecurring = State(initialValue: existingRule != nil)
+        _recurrenceFrequency = State(initialValue: existingRule?.frequency ?? .monthly)
     }
 
     private var categories: [FinanceCategory] {
@@ -168,9 +178,7 @@ struct TransactionEditorView: View {
 
                 Section("Số tiền") {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        TextField("0", text: $amountText)
-                            .keyboardType(.decimalPad)
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
+                        AmountTextField(text: $amountText, fontSize: 26).frame(height: 38)
                             .accessibilityLabel("Số tiền")
                         Text(store.preferences.currencyCode)
                             .font(.system(size: 14, weight: .semibold))
@@ -183,6 +191,7 @@ struct TransactionEditorView: View {
                         .textInputAutocapitalization(.sentences)
                         .accessibilityLabel("Tên giao dịch")
                     DatePicker("Ngày", selection: $date, displayedComponents: .date)
+                    DatePicker("Thời gian", selection: $date, displayedComponents: .hourAndMinute)
                     Picker("Ví", selection: $walletID) {
                         ForEach(store.wallets) { wallet in Text(wallet.name).tag(wallet.id) }
                     }
@@ -215,6 +224,15 @@ struct TransactionEditorView: View {
                     TextField("Thêm thông tin (không bắt buộc)", text: $note, axis: .vertical)
                         .lineLimit(2...4)
                 }
+
+                Section("Giao dịch định kỳ") {
+                    Toggle("Lặp lại giao dịch này", isOn: $isRecurring)
+                    if isRecurring {
+                        Picker("Chu kỳ", selection: $recurrenceFrequency) {
+                            ForEach(RecurrenceFrequency.allCases) { Text($0.title).tag($0) }
+                        }
+                    }
+                }
             }
             .scrollContentBackground(.hidden)
             .background(FinanceStyle.background)
@@ -237,7 +255,7 @@ struct TransactionEditorView: View {
             .alert("Chưa thể lưu giao dịch", isPresented: $showingValidationError) {
                 Button("Đã hiểu", role: .cancel) { }
             } message: {
-                Text("Vui lòng nhập nội dung và số tiền lớn hơn 0.")
+                Text("Vui lòng nhập số tiền lớn hơn 0.")
             }
         }
         .presentationDetents([.large])
@@ -254,13 +272,13 @@ struct TransactionEditorView: View {
     }
 
     private func save() {
-        let normalizedAmount = amountText.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: ".")
-        guard let amount = Double(normalizedAmount), amount > 0, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard let amount = AmountInput.parse(amountText), amount > 0 else {
             showingValidationError = true
             return
         }
         var saved = transaction ?? FinanceTransaction(title: title, amount: amount, type: type, category: category)
-        saved.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        saved.title = cleanTitle.isEmpty ? category.name : cleanTitle
         saved.amount = amount
         saved.date = date
         saved.type = type
@@ -270,6 +288,16 @@ struct TransactionEditorView: View {
             saved.walletID = wallet.id
         }
         saved.note = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        if isRecurring {
+            let ruleID = transaction?.recurrenceID ?? UUID()
+            saved.recurrenceID = ruleID
+            let priorRule = store.recurringRules.first(where: { $0.id == ruleID })
+            let nextDate = priorRule?.nextDate ?? recurrenceFrequency.next(after: date)
+            store.setRecurringRule(RecurringRule(id: ruleID, title: saved.title, amount: amount, type: type, category: category, walletID: saved.walletID, account: saved.account, note: saved.note, frequency: recurrenceFrequency, nextDate: nextDate))
+        } else if let ruleID = transaction?.recurrenceID {
+            store.deleteRecurringRule(id: ruleID)
+            saved.recurrenceID = nil
+        }
         store.addOrUpdate(saved)
         dismiss()
     }

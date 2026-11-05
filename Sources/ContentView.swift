@@ -10,6 +10,7 @@ enum FinanceTab: Hashable {
 
 struct ContentView: View {
     @ObservedObject var store: FinanceStore
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: FinanceTab = .home
     @State private var showingNewTransaction = false
 
@@ -61,6 +62,10 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingNewTransaction) {
             TransactionEditorView(store: store)
+        }
+        .onAppear { store.processDueRecurringTransactions() }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { store.processDueRecurringTransactions() }
         }
         .preferredColorScheme(store.preferences.appearance == "light" ? .light : (store.preferences.appearance == "dark" ? .dark : nil))
     }

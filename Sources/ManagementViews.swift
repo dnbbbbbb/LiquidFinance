@@ -168,6 +168,47 @@ struct WalletManagementView: View {
     }
 }
 
+struct RecurringManagementView: View {
+    @ObservedObject var store: FinanceStore
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if store.recurringRules.isEmpty {
+                    Text("Giao dịch định kỳ sẽ xuất hiện tại đây khi bạn bật Lặp lại trong biểu mẫu giao dịch.")
+                        .foregroundStyle(FinanceStyle.muted)
+                }
+                ForEach(store.recurringRules) { rule in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(rule.title).font(.system(size: 15, weight: .semibold))
+                                Text("\(rule.frequency.title) · kế tiếp \(DateText.dayMonth(rule.nextDate))")
+                                    .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
+                            }
+                            Spacer()
+                            Text(MoneyText.string(rule.amount, currencyCode: store.preferences.currencyCode))
+                                .font(.system(size: 13, weight: .bold)).foregroundStyle(FinanceStyle.ink)
+                        }
+                        Toggle("Đang hoạt động", isOn: Binding(
+                            get: { rule.isEnabled },
+                            set: { value in var updated = rule; updated.isEnabled = value; store.setRecurringRule(updated) }
+                        )).tint(FinanceStyle.purple)
+                    }
+                    .swipeActions {
+                        Button(role: .destructive) { store.deleteRecurringRule(id: rule.id) } label: { Label("Xóa", systemImage: "trash") }
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden).background(FinanceStyle.background)
+            .navigationTitle("Giao dịch định kỳ")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Đóng") { dismiss() } } }
+        }
+    }
+}
+
 private struct WalletEditorView: View {
     @ObservedObject var store: FinanceStore
     @Environment(\.dismiss) private var dismiss
@@ -180,7 +221,7 @@ private struct WalletEditorView: View {
         self.store = store; self.wallet = wallet
         _name = State(initialValue: wallet?.name ?? "")
         _kind = State(initialValue: wallet?.kind ?? "Ví tiền mặt")
-        _amount = State(initialValue: String(wallet?.openingBalance ?? 0))
+        _amount = State(initialValue: AmountInput.format(wallet?.openingBalance ?? 0))
     }
 
     var body: some View {
@@ -194,7 +235,7 @@ private struct WalletEditorView: View {
                     Text("Ví điện tử").tag("Ví điện tử")
                 }
                 HStack {
-                    TextField("Số dư ban đầu", text: $amount).keyboardType(.decimalPad)
+                    AmountTextField(text: $amount, fontSize: 18).frame(height: 30)
                     Text(store.preferences.currencyCode)
                 }
             }
@@ -209,7 +250,7 @@ private struct WalletEditorView: View {
     }
 
     private func save() {
-        let parsed = Double(amount.replacingOccurrences(of: ",", with: ".")) ?? 0
+        let parsed = AmountInput.parse(amount) ?? 0
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanName.isEmpty else { return }
         store.saveWallet(FinanceWallet(id: wallet?.id ?? UUID(), name: cleanName, kind: kind, openingBalance: parsed))

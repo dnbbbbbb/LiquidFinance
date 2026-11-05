@@ -2,6 +2,7 @@ name: iOS Build and Test
 
 on:
   push:
+    branches: ["**"]
     tags: ["v*"]
   pull_request:
 
@@ -13,6 +14,7 @@ jobs:
     runs-on: macos-latest
     env:
       IOS_SIGNING_ENABLED: ${{ secrets.IOS_CERTIFICATE_BASE64 != '' && secrets.IOS_CERTIFICATE_PASSWORD != '' && secrets.IOS_PROVISIONING_PROFILE_BASE64 != '' && secrets.IOS_PROFILE_NAME != '' && secrets.IOS_TEAM_ID != '' }}
+      RELEASE_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v2.0.{0}', github.run_number) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,7 +43,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
       - name: Install Apple signing certificate and profile
-        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.IOS_SIGNING_ENABLED == 'true' }}
+        if: ${{ (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && env.IOS_SIGNING_ENABLED == 'true' }}
         env:
           IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
           IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
@@ -63,7 +65,7 @@ jobs:
           cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
 
       - name: Archive and export signed IPA
-        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.IOS_SIGNING_ENABLED == 'true' }}
+        if: ${{ (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && env.IOS_SIGNING_ENABLED == 'true' }}
         env:
           IOS_PROFILE_NAME: ${{ secrets.IOS_PROFILE_NAME }}
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
@@ -75,7 +77,7 @@ jobs:
             -configuration Release \
             -archivePath build/LiquidFinance.xcarchive \
             -destination 'generic/platform=iOS' \
-            MARKETING_VERSION="${GITHUB_REF_NAME#v}" \
+            MARKETING_VERSION="${RELEASE_VERSION#v}" \
             DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
             CODE_SIGN_STYLE=Manual \
             PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_NAME"
@@ -97,10 +99,10 @@ jobs:
             -archivePath build/LiquidFinance.xcarchive \
             -exportPath build/output \
             -exportOptionsPlist build/ExportOptions.plist
-          mv build/output/LiquidFinance.ipa "build/output/LiquidFinance-${GITHUB_REF_NAME}.ipa"
+          mv build/output/LiquidFinance.ipa "build/output/LiquidFinance-${RELEASE_VERSION}.ipa"
 
       - name: Build unsigned iOS app
-        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.IOS_SIGNING_ENABLED != 'true' }}
+        if: ${{ (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && env.IOS_SIGNING_ENABLED != 'true' }}
         run: >-
           xcodebuild build
           -project LiquidFinance.xcodeproj
@@ -108,25 +110,27 @@ jobs:
           -configuration Release
           -sdk iphoneos
           -derivedDataPath build/DerivedData
-          MARKETING_VERSION="${GITHUB_REF_NAME#v}"
+          MARKETING_VERSION="${RELEASE_VERSION#v}"
           CODE_SIGNING_ALLOWED=NO
           CODE_SIGNING_REQUIRED=NO
 
       - name: Package unsigned IPA
-        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.IOS_SIGNING_ENABLED != 'true' }}
+        if: ${{ (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && env.IOS_SIGNING_ENABLED != 'true' }}
         run: |
           mkdir -p build/output/Payload
           ditto build/DerivedData/Build/Products/Release-iphoneos/LiquidFinance.app build/output/Payload/LiquidFinance.app
           cd build/output
-          /usr/bin/zip -qry "LiquidFinance-${GITHUB_REF_NAME}.ipa" Payload
+          /usr/bin/zip -qry "LiquidFinance-${RELEASE_VERSION}.ipa" Payload
           rm -rf Payload
 
       - name: Publish versioned IPA to GitHub Release
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Liquid Finance ${{ github.ref_name }}
+          tag_name: ${{ env.RELEASE_VERSION }}
+          target_commitish: ${{ github.sha }}
+          name: Liquid Finance ${{ env.RELEASE_VERSION }}
           generate_release_notes: true
           fail_on_unmatched_files: true
+          overwrite_files: true
           files: build/output/*.ipa

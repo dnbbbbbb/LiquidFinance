@@ -8,6 +8,7 @@ final class FinanceStore: ObservableObject {
     @Published private(set) var preferences: FinancePreferences
     @Published private(set) var categories: [FinanceCategory]
     @Published private(set) var wallets: [FinanceWallet]
+    @Published private(set) var recurringRules: [RecurringRule]
 
     private let defaults: UserDefaults
     private let transactionsKey = "finance.transactions.v1"
@@ -15,6 +16,7 @@ final class FinanceStore: ObservableObject {
     private let preferencesKey = "finance.preferences.v1"
     private let categoriesKey = "finance.categories.v1"
     private let walletsKey = "finance.wallets.v1"
+    private let recurringKey = "finance.recurring.v1"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -28,6 +30,7 @@ final class FinanceStore: ObservableObject {
             loadedWallets.append(FinanceWallet(name: legacyName, kind: "Nguồn tiền khác"))
         }
         self.wallets = loadedWallets
+        self.recurringRules = Self.decode([RecurringRule].self, from: defaults, key: "finance.recurring.v1") ?? []
     }
 
     var balance: Double {
@@ -45,6 +48,14 @@ final class FinanceStore: ObservableObject {
         transactions.filter { calendar.isDate($0.date, equalTo: month, toGranularity: .month) }
     }
 
+    func transactions(from start: Date, through end: Date) -> [FinanceTransaction] {
+        transactions.filter { $0.date >= min(start, end) && $0.date <= max(start, end) }
+    }
+
+    func total(for type: TransactionType, from start: Date, through end: Date) -> Double {
+        transactions(from: start, through: end).filter { $0.type == type }.reduce(0) { $0 + $1.amount }
+    }
+
     func total(for type: TransactionType, in month: Date, calendar: Calendar = .current) -> Double {
         transactions(in: month, calendar: calendar)
             .filter { $0.type == type }
@@ -53,9 +64,50 @@ final class FinanceStore: ObservableObject {
 
     func spent(for category: FinanceCategory, in month: Date, calendar: Calendar = .current) -> Double {
         let categoryIDs = Set([category.id] + categories.filter { $0.parentID == category.id }.map(\.id))
-        transactions(in: month, calendar: calendar)
+        return spent(categoryIDs: categoryIDs, from: FinanceDate.startOfMonth(containing: month, calendar: calendar), through: calendar.date(byAdding: DateComponents(month: 1, second: -1), to: FinanceDate.startOfMonth(containing: month, calendar: calendar)) ?? month)
+    }
+
+    func spent(for category: FinanceCategory, from start: Date, through end: Date) -> Double {
+        let categoryIDs = Set([category.id] + categories.filter { $0.parentID == category.id }.map(\.id))
+        return spent(categoryIDs: categoryIDs, from: start, through: end)
+    }
+
+    private func spent(categoryIDs: Set<String>, from start: Date, through end: Date) -> Double {
+        transactions(from: start, through: end)
             .filter { $0.type == .expense && categoryIDs.contains($0.category.id) }
             .reduce(0) { $0 + $1.amount }
+    }
+
+    func spent(for budget: SpendingBudget, from start: Date, through end: Date) -> Double {
+        let ids = Set(budget.categoryIDs + categories.filter { budget.categoryIDs.contains($0.parentID ?? "") }.map(\.id))
+        return transactions(from: start, through: end).filter { $0.type == .expense && ids.contains($0.category.id) }.reduce(0) { $0 + $1.amount }
+    }
+
+    func setRecurringRule(_ rule: RecurringRule) {
+        if let index = recurringRules.firstIndex(where: { $0.id == rule.id }) { recurringRules[index] = rule }
+        else { recurringRules.append(rule) }
+        persist(recurringRules, key: recurringKey)
+    }
+
+    func deleteRecurringRule(id: UUID) {
+        recurringRules.removeAll { $0.id == id }
+        persist(recurringRules, key: recurringKey)
+    }
+
+    func processDueRecurringTransactions(now: Date = .now) {
+        var changed = false
+        for index in recurringRules.indices where recurringRules[index].isEnabled {
+            var rule = recurringRules[index]
+            var safetyCount = 0
+            while rule.nextDate <= now && safetyCount < 500 {
+                transactions.append(FinanceTransaction(title: rule.title, amount: rule.amount, date: rule.nextDate, type: rule.type, category: rule.category, account: rule.account, walletID: rule.walletID, recurrenceID: rule.id, note: rule.note))
+                rule.nextDate = rule.frequency.next(after: rule.nextDate)
+                safetyCount += 1
+                changed = true
+            }
+            recurringRules[index] = rule
+        }
+        if changed { persist(transactions, key: transactionsKey); persist(recurringRules, key: recurringKey) }
     }
 
     func categories(for type: TransactionType) -> [FinanceCategory] { categories.filter { $0.type == type } }
@@ -139,10 +191,12 @@ final class FinanceStore: ObservableObject {
         defaults.removeObject(forKey: walletsKey)
         categories = FinanceCategory.defaults
         wallets = [FinanceWallet(name: "Tiền mặt"), FinanceWallet(name: "Tài khoản ngân hàng", kind: "Tài khoản ngân hàng")]
+        recurringRules = []
+        defaults.removeObject(forKey: recurringKey)
     }
 
     func backupData() throws -> Data {
-        try JSONEncoder().encode(FinanceBackup(transactions: transactions, budgets: budgets, preferences: preferences, categories: categories, wallets: wallets))
+        try JSONEncoder().encode(FinanceBackup(transactions: transactions, budgets: budgets, preferences: preferences, categories: categories, wallets: wallets, recurringRules: recurringRules))
     }
 
     func restoreBackup(_ data: Data) throws {
@@ -150,8 +204,9 @@ final class FinanceStore: ObservableObject {
         guard backup.schemaVersion == 1 else { throw FinanceBackupError.unsupportedVersion }
         transactions = backup.transactions; budgets = backup.budgets; preferences = backup.preferences
         categories = backup.categories; wallets = backup.wallets
+        recurringRules = backup.recurringRules
         persist(transactions, key: transactionsKey); persist(budgets, key: budgetsKey); persist(preferences, key: preferencesKey)
-        persist(categories, key: categoriesKey); persist(wallets, key: walletsKey)
+        persist(categories, key: categoriesKey); persist(wallets, key: walletsKey); persist(recurringRules, key: recurringKey)
     }
 
     private func persist<T: Encodable>(_ value: T, key: String) {
@@ -173,6 +228,25 @@ struct FinanceBackup: Codable {
     var preferences: FinancePreferences
     var categories: [FinanceCategory]
     var wallets: [FinanceWallet]
+    var recurringRules: [RecurringRule] = []
+
+    init(schemaVersion: Int = 1, exportedAt: Date = .now, transactions: [FinanceTransaction], budgets: [SpendingBudget], preferences: FinancePreferences, categories: [FinanceCategory], wallets: [FinanceWallet], recurringRules: [RecurringRule] = []) {
+        self.schemaVersion = schemaVersion; self.exportedAt = exportedAt; self.transactions = transactions
+        self.budgets = budgets; self.preferences = preferences; self.categories = categories; self.wallets = wallets; self.recurringRules = recurringRules
+    }
+
+    private enum CodingKeys: String, CodingKey { case schemaVersion, exportedAt, transactions, budgets, preferences, categories, wallets, recurringRules }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try values.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        exportedAt = try values.decodeIfPresent(Date.self, forKey: .exportedAt) ?? .now
+        transactions = try values.decode([FinanceTransaction].self, forKey: .transactions)
+        budgets = try values.decode([SpendingBudget].self, forKey: .budgets)
+        preferences = try values.decode(FinancePreferences.self, forKey: .preferences)
+        categories = try values.decode([FinanceCategory].self, forKey: .categories)
+        wallets = try values.decode([FinanceWallet].self, forKey: .wallets)
+        recurringRules = try values.decodeIfPresent([RecurringRule].self, forKey: .recurringRules) ?? []
+    }
 }
 
 enum FinanceBackupError: Error { case unsupportedVersion }

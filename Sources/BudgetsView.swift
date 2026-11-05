@@ -18,7 +18,11 @@ struct BudgetsView: View {
     }
 
     private var totalLimit: Double { store.budgets.reduce(0) { $0 + $1.monthlyLimit } }
-    private var totalSpent: Double { store.budgets.reduce(0) { $0 + store.spent(for: $1.category, in: month) } }
+    private var range: (Date, Date) {
+        let start = FinanceDate.startOfMonth(containing: month)
+        return (start, Calendar.current.date(byAdding: DateComponents(month: 1, second: -1), to: start) ?? month)
+    }
+    private var totalSpent: Double { store.budgets.reduce(0) { $0 + store.spent(for: $1, from: range.0, through: range.1) } }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -131,14 +135,15 @@ struct BudgetsView: View {
     }
 
     private func budgetCard(_ budget: SpendingBudget) -> some View {
-        let spent = store.spent(for: budget.category, in: month)
+                        let spent = store.spent(for: budget, from: range.0, through: range.1)
         let ratio = budget.monthlyLimit > 0 ? spent / budget.monthlyLimit : 0
         let over = ratio >= 1
         return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
                 CategoryIcon(category: budget.category, size: 45)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(budget.category.rawValue).font(.system(size: 15, weight: .bold)).foregroundStyle(FinanceStyle.ink)
+                    Text(budget.categoryIDs.compactMap { id in store.categories.first(where: { $0.id == id })?.name }.joined(separator: ", "))
+                        .font(.system(size: 15, weight: .bold)).foregroundStyle(FinanceStyle.ink).lineLimit(1)
                     Text(over ? "Đã vượt giới hạn" : "Còn \(MoneyText.string(max(0, budget.monthlyLimit - spent), currencyCode: store.preferences.currencyCode))")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(over ? FinanceStyle.red : FinanceStyle.muted)
@@ -176,6 +181,7 @@ struct BudgetEditorView: View {
     @Environment(\.dismiss) private var dismiss
     let budget: SpendingBudget?
     @State private var category: FinanceCategory
+    @State private var selectedCategoryIDs: Set<String>
     @State private var limitText: String
     @State private var showingValidationError = false
 
@@ -183,22 +189,29 @@ struct BudgetEditorView: View {
         self.store = store
         self.budget = budget
         _category = State(initialValue: budget?.category ?? .food)
-        _limitText = State(initialValue: budget.map { String($0.monthlyLimit) } ?? "")
+        _selectedCategoryIDs = State(initialValue: Set(budget?.categoryIDs ?? [budget?.category.id ?? FinanceCategory.food.id]))
+        _limitText = State(initialValue: budget.map { AmountInput.format($0.monthlyLimit) } ?? "")
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Danh mục") {
-                    Picker("Danh mục", selection: $category) {
-                        ForEach(store.categories(for: .expense).filter { $0.parentID == nil }) { item in
-                            Label(item.name, systemImage: item.symbol).tag(item)
+                    Button("Chọn tất cả danh mục") { selectedCategoryIDs = Set(store.categories(for: .expense).map(\.id)) }
+                    ForEach(store.categories(for: .expense).filter { $0.parentID == nil }) { parent in
+                        Toggle(isOn: selectionBinding(parent.id)) {
+                            Label(parent.name, systemImage: parent.symbol)
+                        }
+                        ForEach(store.categories(for: .expense).filter { $0.parentID == parent.id }) { child in
+                            Toggle(isOn: selectionBinding(child.id)) {
+                                Label("↳ \(child.name)", systemImage: child.symbol)
+                            }.padding(.leading, 22)
                         }
                     }
                 }
                 Section("Giới hạn mỗi tháng") {
                     HStack {
-                        TextField("0", text: $limitText).keyboardType(.decimalPad).font(.system(size: 22, weight: .bold, design: .rounded))
+                        AmountTextField(text: $limitText, fontSize: 22).frame(height: 34)
                         Text(store.preferences.currencyCode).foregroundStyle(FinanceStyle.muted)
                     }
                 }
@@ -226,13 +239,19 @@ struct BudgetEditorView: View {
     }
 
     private func save() {
-        let normalized = limitText.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: ".")
-        guard let limit = Double(normalized), limit > 0 else {
+        guard let limit = AmountInput.parse(limitText), limit > 0, !selectedCategoryIDs.isEmpty else {
             showingValidationError = true
             return
         }
-        store.setBudget(SpendingBudget(id: budget?.id ?? UUID(), category: category, monthlyLimit: limit))
+        if let selected = store.categories.first(where: { selectedCategoryIDs.contains($0.id) }) { category = selected }
+        store.setBudget(SpendingBudget(id: budget?.id ?? UUID(), category: category, monthlyLimit: limit, categoryIDs: Array(selectedCategoryIDs)))
         dismiss()
+    }
+
+    private func selectionBinding(_ id: String) -> Binding<Bool> {
+        Binding(get: { selectedCategoryIDs.contains(id) }, set: { enabled in
+            if enabled { selectedCategoryIDs.insert(id) } else { selectedCategoryIDs.remove(id) }
+        })
     }
 }
 

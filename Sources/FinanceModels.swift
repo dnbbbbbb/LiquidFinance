@@ -74,6 +74,7 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
     var category: FinanceCategory
     var account: String
     var walletID: UUID?
+    var recurrenceID: UUID?
     var note: String
 
     init(
@@ -85,6 +86,7 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
         category: FinanceCategory,
         account: String = "Tiền mặt",
         walletID: UUID? = nil,
+        recurrenceID: UUID? = nil,
         note: String = ""
     ) {
         self.id = id
@@ -95,10 +97,11 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
         self.category = category
         self.account = account
         self.walletID = walletID
+        self.recurrenceID = recurrenceID
         self.note = note
     }
 
-    private enum CodingKeys: String, CodingKey { case id, title, amount, date, type, category, account, walletID, note }
+    private enum CodingKeys: String, CodingKey { case id, title, amount, date, type, category, account, walletID, recurrenceID, note }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -111,6 +114,7 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
         category = type == .income && decodedCategory.id == FinanceCategory.other.id ? .incomeOther : decodedCategory
         account = try values.decodeIfPresent(String.self, forKey: .account) ?? "Tiền mặt"
         walletID = try values.decodeIfPresent(UUID.self, forKey: .walletID)
+        recurrenceID = try values.decodeIfPresent(UUID.self, forKey: .recurrenceID)
         note = try values.decodeIfPresent(String.self, forKey: .note) ?? ""
     }
 }
@@ -129,11 +133,53 @@ struct SpendingBudget: Identifiable, Codable, Equatable {
     var id: UUID
     var category: FinanceCategory
     var monthlyLimit: Double
+    var categoryIDs: [String]
 
-    init(id: UUID = UUID(), category: FinanceCategory, monthlyLimit: Double) {
+    init(id: UUID = UUID(), category: FinanceCategory, monthlyLimit: Double, categoryIDs: [String]? = nil) {
         self.id = id
         self.category = category
         self.monthlyLimit = monthlyLimit
+        self.categoryIDs = categoryIDs ?? [category.id]
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, category, monthlyLimit, categoryIDs }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        category = try values.decode(FinanceCategory.self, forKey: .category)
+        monthlyLimit = try values.decode(Double.self, forKey: .monthlyLimit)
+        categoryIDs = try values.decodeIfPresent([String].self, forKey: .categoryIDs) ?? [category.id]
+    }
+}
+
+enum RecurrenceFrequency: String, Codable, CaseIterable, Identifiable {
+    case daily, weekly, monthly, yearly
+    var id: String { rawValue }
+    var title: String {
+        switch self { case .daily: return "Hằng ngày"; case .weekly: return "Hằng tuần"; case .monthly: return "Hằng tháng"; case .yearly: return "Hằng năm" }
+    }
+    func next(after date: Date, calendar: Calendar = .current) -> Date {
+        let component: Calendar.Component
+        switch self { case .daily: component = .day; case .weekly: component = .weekOfYear; case .monthly: component = .month; case .yearly: component = .year }
+        return calendar.date(byAdding: component, value: 1, to: date) ?? date.addingTimeInterval(86_400)
+    }
+}
+
+struct RecurringRule: Identifiable, Codable, Equatable {
+    var id: UUID
+    var title: String
+    var amount: Double
+    var type: TransactionType
+    var category: FinanceCategory
+    var walletID: UUID?
+    var account: String
+    var note: String
+    var frequency: RecurrenceFrequency
+    var nextDate: Date
+    var isEnabled: Bool
+    init(id: UUID = UUID(), title: String, amount: Double, type: TransactionType, category: FinanceCategory, walletID: UUID?, account: String, note: String, frequency: RecurrenceFrequency, nextDate: Date, isEnabled: Bool = true) {
+        self.id = id; self.title = title; self.amount = amount; self.type = type; self.category = category
+        self.walletID = walletID; self.account = account; self.note = note; self.frequency = frequency; self.nextDate = nextDate; self.isEnabled = isEnabled
     }
 }
 
@@ -142,8 +188,11 @@ struct FinancePreferences: Codable, Equatable {
     var openingBalance: Double = 0
     var hidesBalance: Bool = false
     var appearance: String = "system"
+    var reminderEnabled: Bool = false
+    var reminderHour: Int = 20
+    var reminderMinute: Int = 0
 
-    private enum CodingKeys: String, CodingKey { case currencyCode, openingBalance, hidesBalance, appearance }
+    private enum CodingKeys: String, CodingKey { case currencyCode, openingBalance, hidesBalance, appearance, reminderEnabled, reminderHour, reminderMinute }
     init() { }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -151,6 +200,9 @@ struct FinancePreferences: Codable, Equatable {
         openingBalance = try values.decodeIfPresent(Double.self, forKey: .openingBalance) ?? 0
         hidesBalance = try values.decodeIfPresent(Bool.self, forKey: .hidesBalance) ?? false
         appearance = try values.decodeIfPresent(String.self, forKey: .appearance) ?? "system"
+        reminderEnabled = try values.decodeIfPresent(Bool.self, forKey: .reminderEnabled) ?? false
+        reminderHour = try values.decodeIfPresent(Int.self, forKey: .reminderHour) ?? 20
+        reminderMinute = try values.decodeIfPresent(Int.self, forKey: .reminderMinute) ?? 0
     }
 }
 

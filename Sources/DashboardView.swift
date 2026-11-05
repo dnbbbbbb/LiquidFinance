@@ -189,10 +189,12 @@ struct DashboardView: View {
             } else {
                 VStack(spacing: 12) {
                     ForEach(store.budgets.prefix(3)) { budget in
-                        let spent = store.spent(for: budget.category, in: month)
+                        let start = FinanceDate.startOfMonth(containing: month)
+                        let end = Calendar.current.date(byAdding: DateComponents(month: 1, second: -1), to: start) ?? month
+                        let spent = store.spent(for: budget, from: start, through: end)
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Label(budget.category.rawValue, systemImage: budget.category.symbol)
+                                Label(budget.categoryIDs.compactMap { id in store.categories.first(where: { $0.id == id })?.name }.joined(separator: ", "), systemImage: budget.category.symbol)
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundStyle(FinanceStyle.ink)
                                 Spacer()

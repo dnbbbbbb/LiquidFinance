@@ -125,4 +125,53 @@ final class FinanceStoreTests: XCTestCase {
         let invalid = try JSONEncoder().encode(backup)
         XCTAssertThrowsError(try store.restoreBackup(invalid))
     }
+
+    func testAmountInputParsesAndFormatsVietnameseSeparators() {
+        XCTAssertEqual(AmountInput.parse("1.234.567"), 1_234_567)
+        XCTAssertEqual(AmountInput.parse("1.234.567,50"), 1_234_567.5)
+        XCTAssertEqual(AmountInput.format(1_234_567), "1.234.567")
+    }
+
+    func testTransactionTimeRangeIsInclusiveAndUnboundedDatesRemainAvailable() {
+        let (store, defaults, suite) = makeStore()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let end = start.addingTimeInterval(3_600)
+        store.addOrUpdate(FinanceTransaction(title: "Trong khoảng", amount: 100, date: start.addingTimeInterval(1_800), type: .expense, category: .food))
+        store.addOrUpdate(FinanceTransaction(title: "Ngoài khoảng", amount: 50, date: end.addingTimeInterval(1), type: .expense, category: .food))
+
+        XCTAssertEqual(store.transactions(from: start, through: end).map(\.title), ["Trong khoảng"])
+        XCTAssertEqual(store.transactions(from: .distantPast, through: .distantFuture).count, 2)
+    }
+
+    func testBudgetCanCoverMultipleCategoriesAndCountsEachOnce() {
+        let (store, defaults, suite) = makeStore()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let parent = FinanceCategory(name: "Nhà", type: .expense)
+        let child = FinanceCategory(name: "Điện", type: .expense, parentID: parent.id)
+        store.saveCategory(parent)
+        store.saveCategory(child)
+        let budget = SpendingBudget(category: parent, monthlyLimit: 2_000, categoryIDs: [parent.id, child.id, FinanceCategory.food.id])
+        store.setBudget(budget)
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let end = start.addingTimeInterval(86_400)
+        store.addOrUpdate(FinanceTransaction(title: "Hóa đơn", amount: 300, date: start, type: .expense, category: child))
+        store.addOrUpdate(FinanceTransaction(title: "Bữa trưa", amount: 200, date: start, type: .expense, category: .food))
+
+        XCTAssertEqual(store.spent(for: budget, from: start, through: end), 500, accuracy: 0.001)
+    }
+
+    func testRecurringTransactionsAreCreatedThroughCurrentTimeAndPersisted() throws {
+        let (store, defaults, suite) = makeStore()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let first = Date(timeIntervalSince1970: 1_700_000_000)
+        let rule = RecurringRule(title: "Tiền thuê nhà", amount: 1_000, type: .expense, category: .housing, walletID: nil, account: "Tiền mặt", note: "", frequency: .daily, nextDate: first)
+        store.setRecurringRule(rule)
+        store.processDueRecurringTransactions(now: first.addingTimeInterval(2 * 86_400))
+
+        XCTAssertEqual(store.transactions.count, 3)
+        XCTAssertEqual(store.recurringRules.first?.nextDate, first.addingTimeInterval(3 * 86_400))
+        let restored = FinanceStore(defaults: defaults)
+        XCTAssertEqual(restored.recurringRules, store.recurringRules)
+    }
 }
