@@ -68,7 +68,7 @@ struct TransactionsView: View {
                     .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 16)
             .padding(.top, 20)
             .padding(.bottom, 110)
         }
@@ -151,6 +151,7 @@ struct TransactionEditorView: View {
     @State private var recurrenceFrequency: RecurrenceFrequency
     @State private var recurrenceWeekday: Int
     @State private var showingValidationError = false
+    @State private var showingCategoryPicker = false
 
     init(store: FinanceStore, transaction: FinanceTransaction? = nil) {
         self.store = store
@@ -234,16 +235,19 @@ struct TransactionEditorView: View {
                     }
                     .padding(.vertical, 3)
                     if categories.count > favouriteCategories.count {
-                        DisclosureGroup("Chọn danh mục khác") {
-                            Picker("Danh mục", selection: $category) {
-                                ForEach(categories) { item in
-                                    Text(categoryTitle(item)).tag(item)
-                                }
+                        Button {
+                            showingCategoryPicker = true
+                        } label: {
+                            HStack {
+                                Label("Chọn danh mục khác", systemImage: "list.bullet.rectangle.portrait")
+                                Spacer()
+                                Image(systemName: "chevron.right").font(.caption.weight(.bold))
                             }
-                            .onChange(of: category) { item in
-                                updateAutomaticTitle(for: item)
-                            }
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(FinanceStyle.purple)
+                            .padding(.vertical, 8)
                         }
+                        .buttonStyle(.plain)
                     }
                 }
 
@@ -301,6 +305,7 @@ struct TransactionEditorView: View {
                     selectCategory(categoriesFor(newType).first ?? .other)
                 }
             }
+            .onChange(of: category) { updateAutomaticTitle(for: $0) }
             .onChange(of: title) { value in
                 let clean = value.trimmingCharacters(in: .whitespacesAndNewlines)
                 usesCategoryAsTitle = clean.isEmpty || clean == category.name
@@ -312,6 +317,11 @@ struct TransactionEditorView: View {
             }
         }
         .background(KeyboardDismissOnTap())
+        .sheet(isPresented: $showingCategoryPicker) {
+            CategorySelectionView(categories: categories, selected: $category)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
@@ -364,6 +374,58 @@ struct TransactionEditorView: View {
         }
         store.addOrUpdate(saved)
         dismiss()
+    }
+}
+
+private struct CategorySelectionView: View {
+    let categories: [FinanceCategory]
+    @Binding var selected: FinanceCategory
+    @Environment(\.dismiss) private var dismiss
+
+    private var parents: [FinanceCategory] { categories.filter { $0.parentID == nil } }
+    private func children(of parent: FinanceCategory) -> [FinanceCategory] { categories.filter { $0.parentID == parent.id } }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(parents) { parent in
+                    Section {
+                        categoryRow(parent, isChild: false)
+                        ForEach(children(of: parent)) { child in
+                            categoryRow(child, isChild: true)
+                        }
+                    } header: {
+                        Label(parent.name, systemImage: parent.symbol)
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(FinanceStyle.background)
+            .navigationTitle("Chọn danh mục")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Xong") { dismiss() } } }
+        }
+    }
+
+    private func categoryRow(_ item: FinanceCategory, isChild: Bool) -> some View {
+        Button {
+            selected = item
+            dismiss()
+        } label: {
+            HStack(spacing: 12) {
+                CategoryIcon(category: item, size: 36)
+                Text(isChild ? "↳  \(item.name)" : item.name)
+                    .foregroundStyle(FinanceStyle.ink)
+                Spacer()
+                if selected.id == item.id {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(FinanceStyle.purple)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .listRowInsets(EdgeInsets(top: 5, leading: isChild ? 30 : 16, bottom: 5, trailing: 16))
     }
 }
 

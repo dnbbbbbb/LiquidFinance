@@ -52,7 +52,7 @@ struct BudgetsView: View {
                     .foregroundStyle(FinanceStyle.muted)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 16)
             .padding(.top, 20)
             .padding(.bottom, 110)
         }

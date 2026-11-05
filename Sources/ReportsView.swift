@@ -84,7 +84,7 @@ struct ReportsView: View {
                 categoriesCard
                 insightCard
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 16)
             .padding(.top, 20)
             .padding(.bottom, 110)
         }

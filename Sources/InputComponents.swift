@@ -167,9 +167,9 @@ struct DateRangeFilterView: View {
         VStack(alignment: .leading, spacing: 10) {
             Toggle("Lọc theo thời gian", isOn: $isEnabled).tint(FinanceStyle.purple)
             if isEnabled {
-                DatePicker("Từ ngày", selection: $start, in: ...Date.now, displayedComponents: .date)
-                DatePicker("Đến ngày", selection: $end, in: ...Date.now, displayedComponents: .date)
-                Text("Tự động tính từ 00:00; ngày hiện tại kết thúc ở thời điểm hiện tại.")
+                DatePicker("Từ ngày, giờ", selection: $start, in: ...Date.now, displayedComponents: [.date, .hourAndMinute])
+                DatePicker("Đến ngày, giờ", selection: $end, in: ...Date.now, displayedComponents: [.date, .hourAndMinute])
+                Text("Chọn ngày và giờ bắt đầu, kết thúc chính xác.")
                     .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
             }
         }
@@ -180,24 +180,21 @@ struct DateRangeFilterView: View {
         .onChange(of: isEnabled) { enabled in
             if enabled { resetDates() }
         }
-        .onChange(of: start) { _ in normalizeDates() }
-        .onChange(of: end) { _ in normalizeDates() }
+        .onChange(of: start) { value in
+            if value > Date.now { start = Date.now }
+            if start > end { end = start }
+        }
+        .onChange(of: end) { value in
+            if value > Date.now { end = Date.now }
+            if end < start { start = end }
+        }
     }
 
     private func resetDates() {
-        normalizeDates()
-    }
-
-    private func normalizeDates() {
         let calendar = Calendar.current
-        start = calendar.startOfDay(for: start)
-        if calendar.isDateInToday(end) {
-            let now = Date.now
-            if abs(end.timeIntervalSince(now)) > 1 { end = now }
-        } else {
-            end = calendar.date(byAdding: DateComponents(day: 1, second: -1), to: calendar.startOfDay(for: end)) ?? end
-        }
-        if start > end { start = calendar.startOfDay(for: end) }
+        let now = Date.now
+        start = calendar.startOfDay(for: now)
+        end = now
     }
 }
 

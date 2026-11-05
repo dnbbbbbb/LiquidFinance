@@ -41,7 +41,7 @@ struct SettingsView: View {
                 dataSection
                 aboutSection
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 16)
             .padding(.top, 20)
             .padding(.bottom, 110)
         }
@@ -280,7 +280,7 @@ struct SettingsView: View {
             Text("Liquid Finance")
                 .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(FinanceStyle.ink)
-            Text("Đơn giản, riêng tư, dành cho bạn · Phiên bản 3.2.0")
+            Text("Đơn giản, riêng tư, dành cho bạn · Phiên bản 3.3.0")
                 .font(.system(size: 12))
                 .foregroundStyle(FinanceStyle.muted)
             Text("Dữ liệu lưu trên thiết bị. Hãy xuất và cất tệp sao lưu ngoài ứng dụng để khôi phục sau khi cài lại.")

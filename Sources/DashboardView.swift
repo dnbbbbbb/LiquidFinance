@@ -19,7 +19,7 @@ struct DashboardView: View {
                 budgetPreview
                 privacyNote
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 16)
             .padding(.top, 16)
             .padding(.bottom, 112)
         }
@@ -73,6 +73,7 @@ struct DashboardView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(store.preferences.hidesBalance ? "Hiện số dư" : "Ẩn số dư")
+                .accessibilityHint(store.preferences.hidesBalance ? "Chạm để hiện tổng số dư" : "Chạm để ẩn tổng số dư")
             }
             Text(store.preferences.hidesBalance ? "••••••••" : MoneyText.string(store.balance, currencyCode: store.preferences.currencyCode))
                 .font(.system(size: 32, weight: .bold, design: .rounded))
@@ -88,7 +89,8 @@ struct DashboardView: View {
                 balanceSummary(title: "Chi tiêu", amount: store.total(for: .expense, in: month), symbol: "arrow.up.right", tint: Color(hex: 0xFFC1C4))
             }
         }
-        .padding(22)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 20)
         .background(
             LinearGradient(colors: [Color(hex: 0x7970FF), Color(hex: 0x5147D5)], startPoint: .topLeading, endPoint: .bottomTrailing),
             in: RoundedRectangle(cornerRadius: 28, style: .continuous)
