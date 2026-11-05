@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @ObservedObject var store: FinanceStore
+    @ObservedObject var cloudSync: ICloudSyncViewModel
     @State private var showingShareSheet = false
     @State private var exportURL: URL?
     @State private var showingExportError = false
@@ -19,7 +20,7 @@ struct SettingsView: View {
     private enum Confirmation: Equatable { case reset, restore }
 
     private var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "3.6.0"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "4.0.0"
     }
 
     private struct CurrencyOption: Identifiable {
@@ -41,6 +42,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 20) {
                 header
                 preferencesSection
+                iCloudSection
                 managementSection
                 recurringSection
                 dataSection
@@ -205,6 +207,28 @@ struct SettingsView: View {
                 .offset(y: 23)
         }
         .padding(.bottom, 22)
+    }
+
+    private var iCloudSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Đồng bộ iCloud", systemImage: cloudSync.state.symbol)
+                .font(.system(size: 15, weight: .bold)).foregroundStyle(FinanceStyle.ink)
+            HStack {
+                Text(cloudSync.state.title).font(.system(size: 14, weight: .medium))
+                Spacer()
+                if let date = cloudSync.lastSyncedAt {
+                    Text("Lần cuối \(DateText.dateTime(date))")
+                        .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
+                }
+            }
+            Button("Đồng bộ ngay") {
+                if let snapshot = try? store.backupData() { cloudSync.synchronize(snapshot: snapshot) }
+            }
+            .font(.system(size: 14, weight: .semibold)).foregroundStyle(FinanceStyle.purple)
+        }
+        .padding(17)
+        .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .onAppear { Task { await cloudSync.refreshConnection() } }
     }
 
     private var managementSection: some View {

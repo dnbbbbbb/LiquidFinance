@@ -2,16 +2,16 @@ name: LiquidFinance
 options:
   bundleIdPrefix: vn.liquidfinance
   deploymentTarget:
-    iOS: "16.0"
+    iOS: "17.0"
   createIntermediateGroups: true
   developmentLanguage: vi
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
     TARGETED_DEVICE_FAMILY: "1"
-    MARKETING_VERSION: "3.8.0"
-    CURRENT_PROJECT_VERSION: "38"
+    MARKETING_VERSION: "4.0.0"
+    CURRENT_PROJECT_VERSION: "40"
     GENERATE_INFOPLIST_FILE: YES
     INFOPLIST_KEY_CFBundleDisplayName: "Ví Tài Chính"
 targets:
@@ -64,7 +64,7 @@ targets:
         PRODUCT_NAME: LiquidFinanceWidgets
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: Widgets/LiquidFinanceWidgets.entitlements
-        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
         GENERATE_INFOPLIST_FILE: NO
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES

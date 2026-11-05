@@ -40,10 +40,11 @@ struct FinanceCategory: Codable, Equatable, Hashable, Identifiable {
     static let gift = FinanceCategory(id: "gift", name: "Quà tặng", type: .income, symbol: "heart.fill")
     static let other = FinanceCategory(id: "other-expense", name: "Khác", type: .expense)
     static let incomeOther = FinanceCategory(id: "other-income", name: "Khác", type: .income)
+    static let transferFee = FinanceCategory(id: "transfer-fee", name: "Phí chuyển khoản", type: .expense, symbol: "creditcard.and.123")
 
     static var expenseCategories: [FinanceCategory] { defaults.filter { $0.type == .expense } }
     static var incomeCategories: [FinanceCategory] { defaults.filter { $0.type == .income } }
-    static var defaults: [FinanceCategory] { [food, transport, shopping, housing, health, entertainment, education, bills, salary, bonus, investment, gift, other, incomeOther] }
+    static var defaults: [FinanceCategory] { [food, transport, shopping, housing, health, entertainment, education, bills, transferFee, salary, bonus, investment, gift, other, incomeOther] }
 
     private enum CodingKeys: String, CodingKey { case id, name, type, parentID, symbol, colorHex }
 
@@ -77,6 +78,7 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
     var walletID: UUID?
     var recurrenceID: UUID?
     var transferID: UUID?
+    var isInternalTransfer: Bool
     var note: String
     var includeInReports: Bool
 
@@ -91,6 +93,7 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
         walletID: UUID? = nil,
         recurrenceID: UUID? = nil,
         transferID: UUID? = nil,
+        isInternalTransfer: Bool = false,
         note: String = "",
         includeInReports: Bool = true
     ) {
@@ -104,11 +107,12 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
         self.walletID = walletID
         self.recurrenceID = recurrenceID
         self.transferID = transferID
+        self.isInternalTransfer = isInternalTransfer
         self.note = note
         self.includeInReports = includeInReports
     }
 
-    private enum CodingKeys: String, CodingKey { case id, title, amount, date, type, category, account, walletID, recurrenceID, transferID, note, includeInReports }
+    private enum CodingKeys: String, CodingKey { case id, title, amount, date, type, category, account, walletID, recurrenceID, transferID, isInternalTransfer, note, includeInReports }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -123,6 +127,7 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
         walletID = try values.decodeIfPresent(UUID.self, forKey: .walletID)
         recurrenceID = try values.decodeIfPresent(UUID.self, forKey: .recurrenceID)
         transferID = try values.decodeIfPresent(UUID.self, forKey: .transferID)
+        isInternalTransfer = try values.decodeIfPresent(Bool.self, forKey: .isInternalTransfer) ?? transferID != nil
         note = try values.decodeIfPresent(String.self, forKey: .note) ?? ""
         includeInReports = try values.decodeIfPresent(Bool.self, forKey: .includeInReports) ?? true
     }
@@ -144,16 +149,20 @@ struct SpendingBudget: Identifiable, Codable, Equatable {
     var monthlyLimit: Double
     var categoryIDs: [String]
     var period: BudgetPeriod
+    var alertThreshold: Int
+    var alertsEnabled: Bool
 
-    init(id: UUID = UUID(), category: FinanceCategory, monthlyLimit: Double, categoryIDs: [String]? = nil, period: BudgetPeriod = .monthly) {
+    init(id: UUID = UUID(), category: FinanceCategory, monthlyLimit: Double, categoryIDs: [String]? = nil, period: BudgetPeriod = .monthly, alertThreshold: Int = 80, alertsEnabled: Bool = false) {
         self.id = id
         self.category = category
         self.monthlyLimit = monthlyLimit
         self.categoryIDs = categoryIDs ?? [category.id]
         self.period = period
+        self.alertThreshold = alertThreshold
+        self.alertsEnabled = alertsEnabled
     }
 
-    private enum CodingKeys: String, CodingKey { case id, category, monthlyLimit, categoryIDs, period }
+    private enum CodingKeys: String, CodingKey { case id, category, monthlyLimit, categoryIDs, period, alertThreshold, alertsEnabled }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         id = try values.decode(UUID.self, forKey: .id)
@@ -161,6 +170,8 @@ struct SpendingBudget: Identifiable, Codable, Equatable {
         monthlyLimit = try values.decode(Double.self, forKey: .monthlyLimit)
         categoryIDs = try values.decodeIfPresent([String].self, forKey: .categoryIDs) ?? [category.id]
         period = try values.decodeIfPresent(BudgetPeriod.self, forKey: .period) ?? .monthly
+        alertThreshold = try values.decodeIfPresent(Int.self, forKey: .alertThreshold) ?? 80
+        alertsEnabled = try values.decodeIfPresent(Bool.self, forKey: .alertsEnabled) ?? false
     }
 }
 
