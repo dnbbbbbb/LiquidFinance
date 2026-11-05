@@ -43,6 +43,9 @@ targets:
       - path: Widgets
     info:
       path: Widgets/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: vn.liquidfinance.app.widgets
