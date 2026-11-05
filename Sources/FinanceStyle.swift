@@ -61,14 +61,14 @@ enum DateText {
     static func dayMonth(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "vi_VN")
-        formatter.dateFormat = "EEE, d MMM"
+        formatter.dateFormat = "dd/MM/yyyy"
         return formatter.string(from: date)
     }
 
     static func monthYear(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "vi_VN")
-        formatter.dateFormat = "MMMM yyyy"
+        formatter.dateFormat = "MM/yyyy"
         return formatter.string(from: date).capitalized
     }
 

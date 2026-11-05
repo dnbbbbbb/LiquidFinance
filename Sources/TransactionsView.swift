@@ -148,7 +148,7 @@ struct TransactionEditorView: View {
         self.transaction = transaction
         _type = State(initialValue: transaction?.type ?? .expense)
         _title = State(initialValue: transaction?.title ?? "")
-        _amountText = State(initialValue: transaction.map { AmountInput.format($0.amount) } ?? "")
+        _amountText = State(initialValue: transaction.map { $0.amount == 0 ? "" : AmountInput.format($0.amount) } ?? "")
         _date = State(initialValue: transaction?.date ?? .now)
         _category = State(initialValue: transaction?.category ?? .food)
         let existingWallet = store.wallets.first(where: { $0.id == transaction?.walletID }) ?? store.wallets.first(where: { $0.name == transaction?.account })
@@ -178,7 +178,7 @@ struct TransactionEditorView: View {
 
                 Section("Số tiền") {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        AmountTextField(text: $amountText, fontSize: 26).frame(height: 38)
+                        AmountTextField(text: $amountText, placeholder: "0", fontSize: 26).frame(height: 38)
                             .accessibilityLabel("Số tiền")
                         Text(store.preferences.currencyCode)
                             .font(.system(size: 14, weight: .semibold))
@@ -235,6 +235,7 @@ struct TransactionEditorView: View {
                 }
             }
             .scrollContentBackground(.hidden)
+            .scrollDismissesKeyboard(.interactively)
             .background(FinanceStyle.background)
             .navigationTitle(transaction == nil ? "Thêm giao dịch" : "Sửa giao dịch")
             .navigationBarTitleDisplayMode(.inline)

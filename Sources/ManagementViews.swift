@@ -221,7 +221,7 @@ private struct WalletEditorView: View {
         self.store = store; self.wallet = wallet
         _name = State(initialValue: wallet?.name ?? "")
         _kind = State(initialValue: wallet?.kind ?? "Ví tiền mặt")
-        _amount = State(initialValue: AmountInput.format(wallet?.openingBalance ?? 0))
+        _amount = State(initialValue: wallet.map { $0.openingBalance == 0 ? "" : AmountInput.format($0.openingBalance) } ?? "")
     }
 
     var body: some View {
@@ -235,11 +235,12 @@ private struct WalletEditorView: View {
                     Text("Ví điện tử").tag("Ví điện tử")
                 }
                 HStack {
-                    AmountTextField(text: $amount, fontSize: 18).frame(height: 30)
+                    AmountTextField(text: $amount, placeholder: "0", fontSize: 18).frame(height: 30)
                     Text(store.preferences.currencyCode)
                 }
             }
             .navigationTitle(wallet == nil ? "Ví mới" : "Sửa ví")
+            .scrollDismissesKeyboard(.interactively)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Hủy") { dismiss() } }

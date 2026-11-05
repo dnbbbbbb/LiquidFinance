@@ -26,6 +26,8 @@ struct AmountTextField: UIViewRepresentable {
         field.keyboardType = .decimalPad
         field.placeholder = placeholder
         field.font = .systemFont(ofSize: fontSize, weight: .bold)
+        field.textColor = .label
+        field.attributedPlaceholder = NSAttributedString(string: placeholder, attributes: [.foregroundColor: UIColor.secondaryLabel.withAlphaComponent(0.55)])
         field.delegate = context.coordinator
         field.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)), for: .editingChanged)
         field.text = text
@@ -35,6 +37,7 @@ struct AmountTextField: UIViewRepresentable {
     func updateUIView(_ field: UITextField, context: Context) {
         if field.text != text { field.text = text }
         field.placeholder = placeholder
+        field.attributedPlaceholder = NSAttributedString(string: placeholder, attributes: [.foregroundColor: UIColor.secondaryLabel.withAlphaComponent(0.55)])
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }

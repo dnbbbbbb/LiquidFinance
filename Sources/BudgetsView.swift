@@ -190,7 +190,7 @@ struct BudgetEditorView: View {
         self.budget = budget
         _category = State(initialValue: budget?.category ?? .food)
         _selectedCategoryIDs = State(initialValue: Set(budget?.categoryIDs ?? [budget?.category.id ?? FinanceCategory.food.id]))
-        _limitText = State(initialValue: budget.map { AmountInput.format($0.monthlyLimit) } ?? "")
+        _limitText = State(initialValue: budget.map { $0.monthlyLimit == 0 ? "" : AmountInput.format($0.monthlyLimit) } ?? "")
     }
 
     var body: some View {
@@ -211,7 +211,7 @@ struct BudgetEditorView: View {
                 }
                 Section("Giới hạn mỗi tháng") {
                     HStack {
-                        AmountTextField(text: $limitText, fontSize: 22).frame(height: 34)
+                        AmountTextField(text: $limitText, placeholder: "0", fontSize: 22).frame(height: 34)
                         Text(store.preferences.currencyCode).foregroundStyle(FinanceStyle.muted)
                     }
                 }
@@ -221,6 +221,7 @@ struct BudgetEditorView: View {
                 }
             }
             .scrollContentBackground(.hidden)
+            .scrollDismissesKeyboard(.interactively)
             .background(FinanceStyle.background)
             .navigationTitle(budget == nil ? "Ngân sách mới" : "Sửa ngân sách")
             .navigationBarTitleDisplayMode(.inline)

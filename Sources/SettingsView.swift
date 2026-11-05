@@ -36,7 +36,6 @@ struct SettingsView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 20) {
                 header
-                balanceSection
                 preferencesSection
                 managementSection
                 dataSection
@@ -214,6 +213,8 @@ struct SettingsView: View {
             )).tint(FinanceStyle.purple)
             if store.preferences.reminderEnabled {
                 DatePicker("Thông báo lúc", selection: $reminderTime, displayedComponents: .hourAndMinute)
+                    .padding(.leading, 12)
+                    .padding(.vertical, 6)
             }
             if notificationUnavailable {
                 Text("Hãy cho phép thông báo trong Cài đặt iPhone để nhận nhắc nhở.")
@@ -298,7 +299,7 @@ struct SettingsView: View {
             Text("Liquid Finance")
                 .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(FinanceStyle.ink)
-            Text("Đơn giản, riêng tư, dành cho bạn · Phiên bản 2.0.0")
+            Text("Đơn giản, riêng tư, dành cho bạn · Phiên bản 3.0.0")
                 .font(.system(size: 12))
                 .foregroundStyle(FinanceStyle.muted)
             Text("Dữ liệu lưu trên thiết bị. Hãy xuất và cất tệp sao lưu ngoài ứng dụng để khôi phục sau khi cài lại.")
