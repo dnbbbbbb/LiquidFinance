@@ -1,4 +1,4 @@
-name: LiquidGlass
+name: LiquidFinance
 options:
   bundleIdPrefix: vn.liquidfinance
   deploymentTarget:
@@ -13,7 +13,7 @@ settings:
     MARKETING_VERSION: "4.1.0"
     CURRENT_PROJECT_VERSION: "41"
     GENERATE_INFOPLIST_FILE: YES
-    INFOPLIST_KEY_CFBundleDisplayName: "LiquidGlass"
+    INFOPLIST_KEY_CFBundleDisplayName: "LiquidFinance"
 targets:
   LiquidFinance:
     type: application
@@ -28,7 +28,7 @@ targets:
     info:
       path: LiquidFinance-Info.plist
       properties:
-        CFBundleDisplayName: "LiquidGlass"
+        CFBundleDisplayName: "LiquidFinance"
         CFBundleURLTypes:
           - CFBundleURLName: vn.liquidfinance.app
             CFBundleURLSchemes: [liquidfinance]

@@ -39,7 +39,7 @@ jobs:
           EXTENSION_POINT=$(plutil -extract NSExtension.NSExtensionPointIdentifier raw -o - Widgets/Info.plist)
           test "$EXTENSION_POINT" = "com.apple.widgetkit-extension"
           xcodebuild -showBuildSettings \
-            -project LiquidGlass.xcodeproj \
+            -project LiquidFinance.xcodeproj \
             -target LiquidFinanceWidgets \
             -sdk iphonesimulator | grep -q 'PRODUCT_BUNDLE_IDENTIFIER = vn.liquidfinance.app.widgets'
 
@@ -53,8 +53,8 @@ jobs:
             echo "No available iPhone Simulator was found on this runner." >&2
             exit 1
           fi
-          LIQUIDGLASS_DISABLE_CLOUDKIT=1 xcodebuild test \
-            -project LiquidGlass.xcodeproj \
+          LIQUIDFINANCE_DISABLE_CLOUDKIT=1 xcodebuild test \
+            -project LiquidFinance.xcodeproj \
             -scheme LiquidFinance \
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -resultBundlePath build/TestResults.xcresult \
@@ -100,7 +100,7 @@ jobs:
           IOS_EXPORT_METHOD: ${{ secrets.IOS_EXPORT_METHOD || 'ad-hoc' }}
         run: |
           xcodebuild archive \
-            -project LiquidGlass.xcodeproj \
+            -project LiquidFinance.xcodeproj \
             -scheme LiquidFinance \
             -configuration Release \
             -archivePath build/LiquidFinance.xcarchive \
@@ -128,13 +128,13 @@ jobs:
             -archivePath build/LiquidFinance.xcarchive \
             -exportPath build/output \
             -exportOptionsPlist build/ExportOptions.plist
-          mv build/output/LiquidFinance.ipa "build/output/LiquidGlass-${RELEASE_VERSION}.ipa"
+          mv build/output/LiquidFinance.ipa "build/output/LiquidFinance-${RELEASE_VERSION}.ipa"
 
       - name: Build unsigned iOS app
         if: ${{ (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && env.IOS_SIGNING_ENABLED != 'true' }}
         run: >-
           xcodebuild build
-          -project LiquidGlass.xcodeproj
+          -project LiquidFinance.xcodeproj
           -scheme LiquidFinance
           -configuration Release
           -sdk iphoneos
@@ -150,7 +150,7 @@ jobs:
           mkdir -p build/output/Payload
           ditto build/DerivedData/Build/Products/Release-iphoneos/LiquidFinance.app build/output/Payload/LiquidFinance.app
           cd build/output
-          /usr/bin/zip -qry "LiquidGlass-${RELEASE_VERSION}.ipa" Payload
+          /usr/bin/zip -qry "LiquidFinance-${RELEASE_VERSION}.ipa" Payload
           rm -rf Payload
 
       - name: Verify IPA version and full-screen metadata
@@ -163,7 +163,7 @@ jobs:
           import plistlib
           import zipfile
 
-          ipa = f"build/output/LiquidGlass-{os.environ['RELEASE_VERSION']}.ipa"
+          ipa = f"build/output/LiquidFinance-{os.environ['RELEASE_VERSION']}.ipa"
           expected_version = os.environ["EXPECTED_VERSION"]
           expected_build = os.environ["GITHUB_RUN_NUMBER"]
           with zipfile.ZipFile(ipa) as package:
@@ -187,7 +187,7 @@ jobs:
         with:
           tag_name: ${{ env.RELEASE_VERSION }}
           target_commitish: ${{ github.sha }}
-          name: LiquidGlass ${{ env.RELEASE_VERSION }}
+          name: LiquidFinance ${{ env.RELEASE_VERSION }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           overwrite_files: true

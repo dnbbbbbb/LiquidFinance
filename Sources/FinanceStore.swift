@@ -33,7 +33,7 @@ final class FinanceStore: ObservableObject {
     /// Keep CloudKit out of that process; the production app still monitors and syncs normally.
     private static var cloudKitDisabled: Bool {
         let environment = ProcessInfo.processInfo.environment
-        return environment["LIQUIDGLASS_DISABLE_CLOUDKIT"] == "1"
+        return environment["LIQUIDFINANCE_DISABLE_CLOUDKIT"] == "1"
             || environment["XCTestConfigurationFilePath"] != nil
     }
 

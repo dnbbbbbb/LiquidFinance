@@ -48,7 +48,7 @@ struct DashboardView: View {
                 .frame(width: 50, height: 50)
                 .background(FinanceStyle.card, in: Circle())
                 .overlay(Circle().stroke(FinanceStyle.line, lineWidth: 1))
-                .accessibilityLabel("LiquidGlass")
+                .accessibilityLabel("LiquidFinance")
         }
     }
 

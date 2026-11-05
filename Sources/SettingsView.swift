@@ -341,7 +341,7 @@ struct SettingsView: View {
             Image(systemName: "leaf.circle.fill")
                 .font(.system(size: 38))
                 .foregroundStyle(FinanceStyle.green)
-            Text("LiquidGlass")
+            Text("LiquidFinance")
                 .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(FinanceStyle.ink)
             Text("Đơn giản, riêng tư, dành cho bạn · Phiên bản \(appVersion)")
@@ -389,7 +389,7 @@ struct SettingsView: View {
 
     private func exportBackup() {
         do {
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("LiquidGlass-Backup-\(Int(Date().timeIntervalSince1970)).json")
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("LiquidFinance-Backup-\(Int(Date().timeIntervalSince1970)).json")
             try store.backupData().write(to: url, options: .atomic)
             exportURL = url
             showingShareSheet = true
@@ -412,7 +412,7 @@ private enum CSVExporter {
             ]
         }
         let csv = ([header] + rows).map { $0.map(escape).joined(separator: ",") }.joined(separator: "\r\n")
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("LiquidGlass-GiaoDich.csv")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("LiquidFinance-GiaoDich.csv")
         do {
             try Data(csv.utf8).write(to: url, options: .atomic)
             return url
