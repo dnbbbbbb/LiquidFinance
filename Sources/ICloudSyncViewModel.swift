@@ -45,9 +45,32 @@ final class ICloudSyncViewModel: ObservableObject {
     private var modelContext: ModelContext?
     private var uploadTask: Task<Void, Never>?
 
+    private var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil || NSClassFromString("XCTestCase") != nil
+    }
+
     init() {
         do {
-            let configuration = ModelConfiguration("LiquidFinanceCloud", schema: Schema([FinanceCloudSnapshot.self]), cloudKitDatabase: .private(containerID))
+            let schema = Schema([FinanceCloudSnapshot.self])
+            let configuration: ModelConfiguration
+            if isRunningTests {
+                configuration = ModelConfiguration("LiquidFinanceCloudTests", schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+            } else {
+                let applicationSupport = try FileManager.default.url(
+                    for: .applicationSupportDirectory,
+                    in: .userDomainMask,
+                    appropriateFor: nil,
+                    create: true
+                )
+                try FileManager.default.createDirectory(at: applicationSupport, withIntermediateDirectories: true)
+                let storeURL = applicationSupport.appendingPathComponent("LiquidFinanceCloud.store")
+                configuration = ModelConfiguration(
+                    "LiquidFinanceCloud",
+                    schema: schema,
+                    url: storeURL,
+                    cloudKitDatabase: .private(containerID)
+                )
+            }
             modelContext = try ModelContainer(for: FinanceCloudSnapshot.self, configurations: configuration).mainContext
         } catch {
             state = .networkError
