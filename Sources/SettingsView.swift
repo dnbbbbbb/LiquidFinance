@@ -55,7 +55,6 @@ struct SettingsView: View {
             reminderTime = Calendar.current.date(bySettingHour: store.preferences.reminderHour, minute: store.preferences.reminderMinute, second: 0, of: .now) ?? .now
             if store.preferences.reminderEnabled { scheduleReminder(true) }
             if store.preferences.budgetAlertsEnabled { configureBudgetAlerts(true) }
-            Task { await store.refreshICloudStatus() }
         }
         .onChange(of: reminderTime) { value in
             let parts = Calendar.current.dateComponents([.hour, .minute], from: value)
