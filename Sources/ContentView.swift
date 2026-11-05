@@ -42,6 +42,8 @@ struct ContentView: View {
                     .tag(FinanceTab.settings)
             }
             .tint(FinanceStyle.purple)
+            .toolbarBackground(FinanceStyle.background, for: .tabBar)
+            .toolbarBackground(.visible, for: .tabBar)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Button {
