@@ -13,16 +13,16 @@
 - Mỗi ngân sách có thể áp dụng cho một, nhiều hoặc tất cả danh mục.
 - Báo cáo 6 tháng và cơ cấu chi tiêu theo danh mục.
 - Danh mục cha/con có thể tùy chỉnh; ví tiền mặt, ngân hàng, thẻ và ví điện tử.
-- Sao lưu/khôi phục toàn bộ dữ liệu JSON, xuất giao dịch CSV, đồng bộ hai chiều qua iCloud Drive và xóa dữ liệu.
+- Trung tâm dữ liệu LiquidFinance: xuất/nhập dữ liệu bằng tệp `.liquidfinance-data` và sao lưu/khôi phục toàn bộ ứng dụng bằng tệp `.liquidfinance-backup`.
 - Chọn giao diện sáng, tối hoặc tự động theo thiết bị.
 - Nhắc nhập giao dịch cuối ngày với giờ do bạn chọn.
 - App icon LiquidFinance, định dạng ngày giờ `dd/MM/yyyy · HH:mm`, và chọn tháng/năm trực tiếp trên màn hình Tổng quan, Giao dịch, Ngân sách và Báo cáo.
 - Chọn biểu tượng khi tạo danh mục; tám danh mục dùng nhiều nhất hiển thị trước trong biểu mẫu giao dịch.
 - V3.2 bổ sung chuyển khoản nội bộ, ngân sách theo tuần/tháng/quý/năm, cảnh báo mức dùng 80%, biểu đồ theo ngày hoặc tháng và widget số dư/nhập nhanh.
 - V3.5 đồng bộ version trong app, extension widget, IPA và GitHub Release; kiểm tra launch screen iPhone được đóng gói.
-- V4.1 dùng iCloud Drive để đồng bộ theo Apple ID với trạng thái kết nối; cảnh báo theo từng ngân sách ở ngưỡng 70/80/90%; và gộp Chi tiêu, Thu nhập, Chuyển khoản nội bộ vào một biểu mẫu thêm giao dịch.
+- V4.1 có cảnh báo theo từng ngân sách ở ngưỡng 70/80/90%; và gộp Chi tiêu, Thu nhập, Chuyển khoản nội bộ vào một biểu mẫu thêm giao dịch.
 - Widget dùng App Group `group.vn.liquidfinance`; hãy bật App Groups với định danh này cho app và widget trong Apple Developer nếu tạo IPA đã ký.
-- Dữ liệu vẫn lưu cục bộ bằng `UserDefaults`; khi bật iCloud, tệp JSON được đồng bộ hai chiều qua iCloud Drive theo bản mới nhất. Khi ký IPA, cần bật iCloud Containers với dịch vụ iCloud Documents và định danh `iCloud.vn.liquidfinance.app` trong Apple Developer và provisioning profile.
+- Dữ liệu vẫn lưu cục bộ bằng `UserDefaults`. Tệp do ứng dụng tạo có định danh, loại tệp và phiên bản riêng của LiquidFinance; app không nhận CSV, JSON chung hoặc tệp từ ứng dụng khác. “Nhập dữ liệu” chỉ gộp giao dịch mới, còn “Khôi phục bản sao lưu” thay thế toàn bộ dữ liệu.
 
 ## Mở bằng Xcode
 

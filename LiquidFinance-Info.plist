@@ -15,6 +15,20 @@
         <key>CFBundleURLName</key><string>vn.liquidfinance.app</string>
         <key>CFBundleURLSchemes</key><array><string>liquidfinance</string></array>
     </dict></array>
+    <key>UTExportedTypeDeclarations</key><array>
+        <dict>
+            <key>UTTypeIdentifier</key><string>vn.liquidfinance.data</string>
+            <key>UTTypeDescription</key><string>Dữ liệu LiquidFinance</string>
+            <key>UTTypeConformsTo</key><array><string>public.data</string></array>
+            <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>liquidfinance-data</string></array></dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key><string>vn.liquidfinance.backup</string>
+            <key>UTTypeDescription</key><string>Bản sao lưu LiquidFinance</string>
+            <key>UTTypeConformsTo</key><array><string>public.data</string></array>
+            <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>liquidfinance-backup</string></array></dict>
+        </dict>
+    </array>
     <key>UILaunchStoryboardName</key><string>LaunchScreen</string>
     <key>UIDeviceFamily</key><array><integer>1</integer></array>
 </dict></plist>

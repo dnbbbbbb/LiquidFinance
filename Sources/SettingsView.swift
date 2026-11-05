@@ -6,9 +6,13 @@ struct SettingsView: View {
     @ObservedObject var store: FinanceStore
     @State private var showingShareSheet = false
     @State private var exportURL: URL?
-    @State private var showingExportError = false
+    @State private var showingArchiveError = false
     @State private var showingImportPicker = false
-    @State private var backupToRestore: Data?
+    @State private var archiveToImport: Data?
+    @State private var importIntent: ImportIntent = .data
+    @State private var archiveErrorMessage = ""
+    @State private var importResultMessage = ""
+    @State private var showingImportResult = false
     @State private var management: ManagementSheet?
     @State private var confirmation: Confirmation?
     @State private var reminderTime = Date()
@@ -16,7 +20,8 @@ struct SettingsView: View {
     @AppStorage("isBalanceHidden") private var isBalanceHidden = false
 
     private enum ManagementSheet: String, Identifiable { case categories, wallets, recurring; var id: String { rawValue } }
-    private enum Confirmation: Equatable { case reset, restore }
+    private enum Confirmation: Equatable { case reset, importData, restoreBackup }
+    private enum ImportIntent { case data, backup }
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "4.1.0"
@@ -77,26 +82,24 @@ struct SettingsView: View {
             case .recurring: RecurringManagementView(store: store)
             }
         }
-        .fileImporter(isPresented: $showingImportPicker, allowedContentTypes: [.json], allowsMultipleSelection: false) { result in
+        .fileImporter(isPresented: $showingImportPicker, allowedContentTypes: importIntent == .data ? [LiquidFinanceArchiveType.data] : [LiquidFinanceArchiveType.backup], allowsMultipleSelection: false) { result in
             do {
                 guard let url = try result.get().first else { return }
                 let granted = url.startAccessingSecurityScopedResource()
                 defer { if granted { url.stopAccessingSecurityScopedResource() } }
-                backupToRestore = try Data(contentsOf: url)
-                confirmation = .restore
-            } catch { showingExportError = true }
+                archiveToImport = try Data(contentsOf: url)
+                confirmation = importIntent == .data ? .importData : .restoreBackup
+            } catch { presentArchiveError(error) }
         }
         .confirmationDialog(confirmationTitle, isPresented: Binding(get: { confirmation != nil }, set: { if !$0 { confirmation = nil } }), titleVisibility: .visible) {
-            if confirmation == .restore {
+            if confirmation == .importData {
+                Button("Nhập và gộp dữ liệu") { importData() }
+                Button("Hủy", role: .cancel) { archiveToImport = nil; confirmation = nil }
+            } else if confirmation == .restoreBackup {
                 Button("Thay thế dữ liệu hiện tại", role: .destructive) {
-                    guard let backupToRestore else { return }
-                    do {
-                        try store.restoreBackup(backupToRestore)
-                    } catch { showingExportError = true }
-                    self.backupToRestore = nil
-                    confirmation = nil
+                    restoreBackup()
                 }
-                Button("Hủy", role: .cancel) { backupToRestore = nil; confirmation = nil }
+                Button("Hủy", role: .cancel) { archiveToImport = nil; confirmation = nil }
             } else if confirmation == .reset {
                 Button("Xóa toàn bộ dữ liệu", role: .destructive) {
                     store.clearAllData()
@@ -105,12 +108,17 @@ struct SettingsView: View {
                 Button("Hủy", role: .cancel) { confirmation = nil }
             }
         } message: {
-            Text(confirmation == .restore ? "Dữ liệu hiện tại sẽ được thay thế bằng nội dung trong tệp sao lưu." : "Tất cả giao dịch, ngân sách và cài đặt trên iPhone này sẽ bị xóa.")
+            Text(confirmation == .importData ? "Các giao dịch, danh mục và ví mới sẽ được thêm vào. Dữ liệu đang có sẽ không bị thay thế." : (confirmation == .restoreBackup ? "Dữ liệu hiện tại sẽ được thay thế bằng nội dung trong tệp sao lưu." : "Tất cả giao dịch, ngân sách và cài đặt trên iPhone này sẽ bị xóa."))
         }
-        .alert("Không thể xử lý tệp", isPresented: $showingExportError) {
+        .alert("Không thể xử lý tệp", isPresented: $showingArchiveError) {
             Button("Đã hiểu", role: .cancel) { }
         } message: {
-            Text("Kiểm tra tệp sao lưu rồi thử lại.")
+            Text(archiveErrorMessage)
+        }
+        .alert("Đã nhập dữ liệu", isPresented: $showingImportResult) {
+            Button("Đã hiểu", role: .cancel) { }
+        } message: {
+            Text(importResultMessage)
         }
         .alert("Không thể bật thông báo", isPresented: $notificationUnavailable) {
             Button("Đã hiểu", role: .cancel) { }
@@ -120,7 +128,11 @@ struct SettingsView: View {
     }
 
     private var confirmationTitle: String {
-        confirmation == .restore ? "Khôi phục bản sao lưu?" : "Xóa toàn bộ dữ liệu?"
+        switch confirmation {
+        case .importData: return "Nhập dữ liệu LiquidFinance?"
+        case .restoreBackup: return "Khôi phục bản sao lưu?"
+        default: return "Xóa toàn bộ dữ liệu?"
+        }
     }
 
     private var header: some View {
@@ -257,46 +269,27 @@ struct SettingsView: View {
 
     private var dataSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Dữ liệu của bạn", systemImage: "externaldrive")
+            Label("Trung tâm dữ liệu LiquidFinance", systemImage: "externaldrive")
                 .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(FinanceStyle.ink)
-            Button(action: exportCSV) {
-                settingsActionRow(icon: "square.and.arrow.up", title: "Xuất giao dịch dạng CSV", color: FinanceStyle.purple)
+            Text("Chỉ dùng tệp LiquidFinance để dữ liệu của bạn luôn nhất quán và an toàn khi chuyển thiết bị.")
+                .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
+            Button(action: exportData) {
+                settingsActionRow(icon: "square.and.arrow.up", title: "Xuất dữ liệu", detail: ".liquidfinance-data", color: FinanceStyle.purple)
             }
             .buttonStyle(.plain)
             Divider().overlay(FinanceStyle.line)
+            Button { beginImport(.data) } label: {
+                settingsActionRow(icon: "square.and.arrow.down", title: "Nhập dữ liệu", detail: "Gộp giao dịch mới", color: FinanceStyle.purple)
+            }.buttonStyle(.plain)
+            Divider().overlay(FinanceStyle.line)
             Button(action: exportBackup) {
-                settingsActionRow(icon: "externaldrive.badge.checkmark", title: "Sao lưu toàn bộ dữ liệu (JSON)", color: FinanceStyle.purple)
+                settingsActionRow(icon: "externaldrive.badge.checkmark", title: "Tạo bản sao lưu", detail: ".liquidfinance-backup", color: FinanceStyle.purple)
             }.buttonStyle(.plain)
             Divider().overlay(FinanceStyle.line)
-            Button { showingImportPicker = true } label: {
-                settingsActionRow(icon: "square.and.arrow.down", title: "Nhập bản sao lưu JSON", color: FinanceStyle.purple)
+            Button { beginImport(.backup) } label: {
+                settingsActionRow(icon: "arrow.counterclockwise", title: "Khôi phục bản sao lưu", detail: "Thay thế toàn bộ dữ liệu", color: FinanceStyle.purple)
             }.buttonStyle(.plain)
-            Divider().overlay(FinanceStyle.line)
-            Toggle(isOn: Binding(get: { store.iCloudSyncEnabled }, set: { store.setICloudSyncEnabled($0) })) {
-                Label("Sao lưu và đồng bộ iCloud Drive", systemImage: "icloud.and.arrow.up")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(FinanceStyle.purple)
-            }
-            .tint(FinanceStyle.purple)
-            HStack {
-                Image(systemName: iCloudStatusIcon)
-                    .foregroundStyle(iCloudStatusColor)
-                Text(store.iCloudStatus)
-                Spacer()
-                if store.iCloudSyncEnabled {
-                    Button("Đồng bộ ngay") { Task { await store.syncWithICloud() } }
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(FinanceStyle.purple)
-                }
-            }
-            .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
-            if let lastSync = store.lastICloudSyncDate {
-                Text("Cập nhật lần cuối: \(DateText.dateTime(lastSync))")
-                    .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
-            }
-            Text("Đồng bộ bản sao lưu JSON qua iCloud Drive khi bạn bật tính năng này. Bạn vẫn có thể xuất hoặc nhập JSON nếu không dùng iCloud Drive.")
-                .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
             Divider().overlay(FinanceStyle.line)
             Button { confirmation = .reset } label: {
                 settingsActionRow(icon: "trash", title: "Xóa toàn bộ dữ liệu", color: FinanceStyle.red)
@@ -307,27 +300,13 @@ struct SettingsView: View {
         .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
-    private var iCloudStatusIcon: String {
-        switch store.iCloudStatus {
-        case "Đang đồng bộ": return "arrow.triangle.2.circlepath.icloud"
-        case "Đã cập nhật": return "checkmark.icloud.fill"
-        case "Chưa đăng nhập iCloud", "iCloud Drive không khả dụng": return "icloud.slash"
-        default: return "exclamationmark.icloud.fill"
-        }
-    }
-
-    private var iCloudStatusColor: Color {
-        switch store.iCloudStatus {
-        case "Đã cập nhật": return FinanceStyle.green
-        case "Lỗi mạng", "Chưa đăng nhập iCloud", "iCloud Drive không khả dụng": return FinanceStyle.red
-        default: return FinanceStyle.purple
-        }
-    }
-
-    private func settingsActionRow(icon: String, title: String, color: Color) -> some View {
+    private func settingsActionRow(icon: String, title: String, detail: String? = nil, color: Color) -> some View {
         HStack(spacing: 11) {
             Image(systemName: icon).foregroundStyle(color).frame(width: 22)
-            Text(title).font(.system(size: 14, weight: .semibold)).foregroundStyle(color)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 14, weight: .semibold)).foregroundStyle(color)
+                if let detail { Text(detail).font(.system(size: 11)).foregroundStyle(FinanceStyle.muted) }
+            }
             Spacer()
             Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold)).foregroundStyle(FinanceStyle.muted)
         }
@@ -346,7 +325,7 @@ struct SettingsView: View {
             Text("Đơn giản, riêng tư, dành cho bạn · Phiên bản \(appVersion)")
                 .font(.system(size: 12))
                 .foregroundStyle(FinanceStyle.muted)
-            Text("Dữ liệu lưu trên thiết bị; bạn có thể bật iCloud để sao lưu và đồng bộ an toàn giữa các thiết bị.")
+            Text("Dữ liệu lưu trên thiết bị. Dùng tệp LiquidFinance để xuất, nhập và sao lưu an toàn.")
                 .font(.system(size: 12))
                 .foregroundStyle(FinanceStyle.muted)
                 .multilineTextAlignment(.center)
@@ -377,51 +356,62 @@ struct SettingsView: View {
         }
     }
 
-    private func exportCSV() {
-        guard let url = CSVExporter.createFile(transactions: store.transactions) else {
-            showingExportError = true
-            return
-        }
-        exportURL = url
-        showingShareSheet = true
+    private func beginImport(_ intent: ImportIntent) {
+        importIntent = intent
+        showingImportPicker = true
+    }
+
+    private func exportData() {
+        do {
+            shareArchive(data: try store.exportData(), filename: "LiquidFinance-Data-\(archiveTimestamp()).liquidfinance-data")
+        } catch { presentArchiveError(error) }
     }
 
     private func exportBackup() {
         do {
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("LiquidFinance-Backup-\(Int(Date().timeIntervalSince1970)).json")
-            try store.backupData().write(to: url, options: .atomic)
+            shareArchive(data: try store.createBackup(), filename: "LiquidFinance-Backup-\(archiveTimestamp()).liquidfinance-backup")
+        } catch { presentArchiveError(error) }
+    }
+
+    private func importData() {
+        defer { archiveToImport = nil; confirmation = nil }
+        do {
+            guard let archiveToImport else { return }
+            let count = try store.importData(archiveToImport)
+            importResultMessage = count == 0 ? "Không có giao dịch mới để nhập." : "Đã thêm \(count) giao dịch mới."
+            showingImportResult = true
+        } catch { presentArchiveError(error) }
+    }
+
+    private func restoreBackup() {
+        defer { archiveToImport = nil; confirmation = nil }
+        do {
+            guard let archiveToImport else { return }
+            try store.restoreBackup(archiveToImport)
+            importResultMessage = "Toàn bộ dữ liệu LiquidFinance đã được khôi phục."
+            showingImportResult = true
+        } catch { presentArchiveError(error) }
+    }
+
+    private func shareArchive(data: Data, filename: String) {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        do {
+            try data.write(to: url, options: .atomic)
             exportURL = url
             showingShareSheet = true
-        } catch { showingExportError = true }
-    }
-}
-
-private enum CSVExporter {
-    static func createFile(transactions: [FinanceTransaction]) -> URL? {
-        let header = ["Ngày", "Loại", "Tên", "Danh mục", "Số tiền", "Ví", "Ghi chú"]
-        let rows = transactions.sorted { $0.date < $1.date }.map { transaction in
-            [
-                ISO8601DateFormatter().string(from: transaction.date),
-                transaction.type.title,
-                transaction.title,
-                transaction.category.rawValue,
-                String(transaction.amount),
-                transaction.account,
-                transaction.note
-            ]
-        }
-        let csv = ([header] + rows).map { $0.map(escape).joined(separator: ",") }.joined(separator: "\r\n")
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("LiquidFinance-GiaoDich.csv")
-        do {
-            try Data(csv.utf8).write(to: url, options: .atomic)
-            return url
-        } catch {
-            return nil
-        }
+        } catch { presentArchiveError(error) }
     }
 
-    private static func escape(_ value: String) -> String {
-        "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
+    private func archiveTimestamp() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return formatter.string(from: .now)
+    }
+
+    private func presentArchiveError(_ error: Error) {
+        archiveErrorMessage = (error as? LocalizedError)?.errorDescription ?? "Không thể đọc hoặc tạo tệp LiquidFinance. Hãy thử lại."
+        showingArchiveError = true
     }
 }
 

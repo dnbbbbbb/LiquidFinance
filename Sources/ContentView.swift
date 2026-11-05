@@ -70,12 +70,10 @@ struct ContentView: View {
         }
         .onAppear {
             store.processDueRecurringTransactions()
-            if store.iCloudSyncEnabled { Task { await store.syncWithICloud() } }
         }
         .onChange(of: scenePhase) { phase in
             if phase == .active {
                 store.processDueRecurringTransactions()
-                if store.iCloudSyncEnabled { Task { await store.syncWithICloud() } }
             }
         }
         .onOpenURL { url in

@@ -109,7 +109,7 @@ final class FinanceStoreTests: XCTestCase {
         store.addOrUpdate(FinanceTransaction(title: "Nạp tiền", amount: 250, type: .income, category: .salary, account: wallet.name, walletID: wallet.id))
         XCTAssertEqual(store.balance(for: wallet), 1_250, accuracy: 0.001)
 
-        let backup = try store.backupData()
+        let backup = try store.createBackup()
         store.clearAllData()
         try store.restoreBackup(backup)
         XCTAssertEqual(store.wallets.first(where: { $0.id == wallet.id }), wallet)
@@ -120,20 +120,47 @@ final class FinanceStoreTests: XCTestCase {
     func testBackupRejectsUnsupportedSchemaVersion() throws {
         let (store, defaults, suite) = makeStore()
         defer { defaults.removePersistentDomain(forName: suite) }
-        var backup = FinanceBackup(transactions: [], budgets: [], preferences: FinancePreferences(), categories: [], wallets: [])
+        var backup = LiquidFinanceBackupPackage(transactions: [], budgets: [], preferences: FinancePreferences(), categories: [], wallets: [])
         backup.schemaVersion = 99
-        let invalid = try JSONEncoder().encode(backup)
+        let invalid = try LiquidFinanceArchive.encode(backup)
         XCTAssertThrowsError(try store.restoreBackup(invalid))
     }
 
-    func testBackupTracksTheLatestLocalChangeForCloudSync() throws {
+    func testBackupContainsTheLiquidFinanceArchiveMarker() throws {
         let (store, defaults, suite) = makeStore()
         defer { defaults.removePersistentDomain(forName: suite) }
         store.addOrUpdate(FinanceTransaction(title: "Cà phê", amount: 40, type: .expense, category: .food))
 
-        let backup = try JSONDecoder().decode(FinanceBackup.self, from: store.backupData())
-        XCTAssertGreaterThan(backup.exportedAt, .distantPast)
+        let backup = try LiquidFinanceArchive.decodeBackup(store.createBackup())
+        XCTAssertEqual(backup.format, "LiquidFinance")
+        XCTAssertEqual(backup.kind, .backup)
         XCTAssertEqual(backup.transactions.count, 1)
+    }
+
+    func testDataImportMergesOnlyNewTransactions() throws {
+        let (source, sourceDefaults, sourceSuite) = makeStore()
+        let (destination, destinationDefaults, destinationSuite) = makeStore()
+        defer {
+            sourceDefaults.removePersistentDomain(forName: sourceSuite)
+            destinationDefaults.removePersistentDomain(forName: destinationSuite)
+        }
+        let shared = FinanceTransaction(title: "Cà phê", amount: 40, type: .expense, category: .food)
+        source.addOrUpdate(shared)
+        source.addOrUpdate(FinanceTransaction(title: "Lương", amount: 1_000, type: .income, category: .salary))
+        destination.addOrUpdate(shared)
+
+        let imported = try destination.importData(source.exportData())
+
+        XCTAssertEqual(imported, 1)
+        XCTAssertEqual(destination.transactions.count, 2)
+        XCTAssertTrue(destination.transactions.contains { $0.title == "Lương" })
+    }
+
+    func testBackupRestoreRejectsADataArchive() throws {
+        let (store, defaults, suite) = makeStore()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertThrowsError(try store.restoreBackup(store.exportData()))
     }
 
     func testAmountInputParsesAndFormatsVietnameseSeparators() {

@@ -6,17 +6,12 @@ import WidgetKit
 
 @MainActor
 final class FinanceStore: ObservableObject {
-    private static let iCloudContainerIdentifier = "iCloud.vn.liquidfinance.app"
-    private static let iCloudBackupFilename = "LiquidFinance-backup.json"
     @Published private(set) var transactions: [FinanceTransaction]
     @Published private(set) var budgets: [SpendingBudget]
     @Published private(set) var preferences: FinancePreferences
     @Published private(set) var categories: [FinanceCategory]
     @Published private(set) var wallets: [FinanceWallet]
     @Published private(set) var recurringRules: [RecurringRule]
-    @Published private(set) var iCloudSyncEnabled: Bool
-    @Published private(set) var iCloudStatus = "Chưa đăng nhập iCloud"
-    @Published private(set) var lastICloudSyncDate: Date?
 
     private let defaults: UserDefaults
     private let transactionsKey = "finance.transactions.v1"
@@ -25,23 +20,8 @@ final class FinanceStore: ObservableObject {
     private let categoriesKey = "finance.categories.v1"
     private let walletsKey = "finance.wallets.v1"
     private let recurringKey = "finance.recurring.v1"
-    private let iCloudSyncKey = "finance.icloud.sync.enabled"
     private let dataUpdatedKey = "finance.data.updated-at"
-    private let iCloudSyncDateKey = "finance.icloud.last-sync"
     private let widgetDefaults = UserDefaults(suiteName: "group.vn.liquidfinance")
-
-    /// Returns nil when iCloud Drive is disabled, no Apple ID is signed in, or the IPA was signed
-    /// without the ubiquity-container capability. Those are recoverable states, not crashes.
-    private static var iCloudBackupURL: URL? {
-        guard FileManager.default.ubiquityIdentityToken != nil,
-              let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: iCloudContainerIdentifier)
-        else {
-            return nil
-        }
-        return containerURL
-            .appendingPathComponent("Documents", isDirectory: true)
-            .appendingPathComponent(iCloudBackupFilename, isDirectory: false)
-    }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -60,8 +40,6 @@ final class FinanceStore: ObservableObject {
         }
         self.wallets = loadedWallets
         self.recurringRules = Self.decode([RecurringRule].self, from: defaults, key: "finance.recurring.v1") ?? []
-        self.iCloudSyncEnabled = defaults.object(forKey: "finance.icloud.sync.enabled") as? Bool ?? false
-        self.lastICloudSyncDate = defaults.object(forKey: "finance.icloud.last-sync") as? Date
         if defaults.object(forKey: dataUpdatedKey) == nil,
            !loadedTransactions.isEmpty || !self.budgets.isEmpty || !self.recurringRules.isEmpty {
             defaults.set(Date.now, forKey: dataUpdatedKey)
@@ -250,59 +228,6 @@ final class FinanceStore: ObservableObject {
         persist(preferences, key: preferencesKey)
     }
 
-    func setICloudSyncEnabled(_ enabled: Bool) {
-        iCloudSyncEnabled = enabled
-        defaults.set(enabled, forKey: iCloudSyncKey)
-        if enabled {
-            Task { await syncWithICloud() }
-        } else {
-            iCloudStatus = "Đã cập nhật"
-        }
-    }
-
-    func syncWithICloud() async {
-        guard iCloudSyncEnabled else { return }
-        guard let backupURL = Self.iCloudBackupURL else {
-            iCloudStatus = "iCloud Drive không khả dụng"
-            return
-        }
-        iCloudStatus = "Đang đồng bộ"
-        do {
-            let local = try backupData()
-            let localBackup = try JSONDecoder().decode(FinanceBackup.self, from: local)
-            let fileManager = FileManager.default
-            try fileManager.createDirectory(at: backupURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            if fileManager.fileExists(atPath: backupURL.path) {
-                try? fileManager.startDownloadingUbiquitousItem(at: backupURL)
-                let remoteData = try Data(contentsOf: backupURL)
-                let remoteBackup = try JSONDecoder().decode(FinanceBackup.self, from: remoteData)
-                if remoteBackup.exportedAt > localBackup.exportedAt {
-                    try restoreBackup(remoteData, scheduleSync: false)
-                } else if localBackup.exportedAt > remoteBackup.exportedAt {
-                    try local.write(to: backupURL, options: .atomic)
-                }
-            } else {
-                try local.write(to: backupURL, options: .atomic)
-            }
-            lastICloudSyncDate = .now
-            defaults.set(lastICloudSyncDate, forKey: iCloudSyncDateKey)
-            iCloudStatus = "Đã cập nhật"
-        } catch {
-            iCloudStatus = "Lỗi mạng"
-        }
-    }
-
-    /// Checks iCloud Drive availability without creating a CloudKit client.
-    func refreshICloudStatus() async {
-        guard Self.iCloudBackupURL != nil else {
-            iCloudStatus = "iCloud Drive không khả dụng"
-            return
-        }
-        if !iCloudSyncEnabled || iCloudStatus == "Chưa đăng nhập iCloud" || iCloudStatus == "Lỗi mạng" || iCloudStatus == "iCloud Drive không khả dụng" {
-            iCloudStatus = "Đã cập nhật"
-        }
-    }
-
     func syncBalanceVisibility(_ isHidden: Bool) {
         guard preferences.hidesBalance != isHidden else { return }
         preferences.hidesBalance = isHidden
@@ -326,25 +251,38 @@ final class FinanceStore: ObservableObject {
         syncWidgetSnapshot()
     }
 
-    func backupData() throws -> Data {
-        let updatedAt = defaults.object(forKey: dataUpdatedKey) as? Date ?? .distantPast
-        return try JSONEncoder().encode(FinanceBackup(exportedAt: updatedAt, transactions: transactions, budgets: budgets, preferences: preferences, categories: categories, wallets: wallets, recurringRules: recurringRules))
+    func exportData() throws -> Data {
+        try LiquidFinanceArchive.encode(LiquidFinanceDataPackage(transactions: transactions, categories: categories, wallets: wallets))
     }
 
-    func restoreBackup(_ data: Data) throws { try restoreBackup(data, scheduleSync: true) }
+    func createBackup() throws -> Data {
+        try LiquidFinanceArchive.encode(LiquidFinanceBackupPackage(transactions: transactions, budgets: budgets, preferences: preferences, categories: categories, wallets: wallets, recurringRules: recurringRules))
+    }
 
-    private func restoreBackup(_ data: Data, scheduleSync: Bool) throws {
-        let backup = try JSONDecoder().decode(FinanceBackup.self, from: data)
-        guard backup.schemaVersion == 1 else { throw FinanceBackupError.unsupportedVersion }
-        transactions = backup.transactions; budgets = backup.budgets; preferences = backup.preferences
-        categories = backup.categories; wallets = backup.wallets
-        recurringRules = backup.recurringRules
-        defaults.set(backup.exportedAt, forKey: dataUpdatedKey)
+    /// Imports only records that do not already exist locally. This makes sharing a data file safe:
+    /// existing transactions, categories, and wallets are never overwritten.
+    @discardableResult
+    func importData(_ data: Data) throws -> Int {
+        let package = try LiquidFinanceArchive.decodeData(data)
+        let knownCategoryIDs = Set(categories.map(\.id))
+        let knownWalletIDs = Set(wallets.map(\.id))
+        let knownTransactionIDs = Set(transactions.map(\.id))
+        categories.append(contentsOf: package.categories.filter { !knownCategoryIDs.contains($0.id) })
+        wallets.append(contentsOf: package.wallets.filter { !knownWalletIDs.contains($0.id) })
+        let newTransactions = package.transactions.filter { !knownTransactionIDs.contains($0.id) }
+        transactions.append(contentsOf: newTransactions)
+        persistAll()
+        evaluateBudgetAlerts()
+        return newTransactions.count
+    }
+
+    /// Restores a complete LiquidFinance backup and deliberately replaces all local records.
+    func restoreBackup(_ data: Data) throws {
+        let package = try LiquidFinanceArchive.decodeBackup(data)
+        transactions = package.transactions; budgets = package.budgets; preferences = package.preferences
+        categories = package.categories; wallets = package.wallets; recurringRules = package.recurringRules
         defaults.set(preferences.hidesBalance, forKey: "isBalanceHidden")
-        persist(transactions, key: transactionsKey); persist(budgets, key: budgetsKey); persist(preferences, key: preferencesKey)
-        persist(categories, key: categoriesKey); persist(wallets, key: walletsKey); persist(recurringRules, key: recurringKey)
-        defaults.set(backup.exportedAt, forKey: dataUpdatedKey)
-        if scheduleSync { scheduleICloudSync() }
+        persistAll()
     }
 
     private func persist<T: Encodable>(_ value: T, key: String) {
@@ -352,12 +290,15 @@ final class FinanceStore: ObservableObject {
         defaults.set(data, forKey: key)
         defaults.set(Date.now, forKey: dataUpdatedKey)
         syncWidgetSnapshot()
-        scheduleICloudSync()
     }
 
-    private func scheduleICloudSync() {
-        guard iCloudSyncEnabled else { return }
-        Task { await syncWithICloud() }
+    private func persistAll() {
+        persist(transactions, key: transactionsKey)
+        persist(budgets, key: budgetsKey)
+        persist(preferences, key: preferencesKey)
+        persist(categories, key: categoriesKey)
+        persist(wallets, key: walletsKey)
+        persist(recurringRules, key: recurringKey)
     }
 
     private func evaluateBudgetAlerts() {
@@ -401,35 +342,3 @@ final class FinanceStore: ObservableObject {
         return try? JSONDecoder().decode(type, from: data)
     }
 }
-
-struct FinanceBackup: Codable {
-    var schemaVersion = 1
-    var exportedAt = Date()
-    var transactions: [FinanceTransaction]
-    var budgets: [SpendingBudget]
-    var preferences: FinancePreferences
-    var categories: [FinanceCategory]
-    var wallets: [FinanceWallet]
-    var recurringRules: [RecurringRule] = []
-
-    init(schemaVersion: Int = 1, exportedAt: Date = .now, transactions: [FinanceTransaction], budgets: [SpendingBudget], preferences: FinancePreferences, categories: [FinanceCategory], wallets: [FinanceWallet], recurringRules: [RecurringRule] = []) {
-        self.schemaVersion = schemaVersion; self.exportedAt = exportedAt; self.transactions = transactions
-        self.budgets = budgets; self.preferences = preferences; self.categories = categories; self.wallets = wallets; self.recurringRules = recurringRules
-    }
-
-    private enum CodingKeys: String, CodingKey { case schemaVersion, exportedAt, transactions, budgets, preferences, categories, wallets, recurringRules }
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        schemaVersion = try values.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
-        exportedAt = try values.decodeIfPresent(Date.self, forKey: .exportedAt) ?? .distantPast
-        transactions = try values.decode([FinanceTransaction].self, forKey: .transactions)
-        budgets = try values.decode([SpendingBudget].self, forKey: .budgets)
-        preferences = try values.decode(FinancePreferences.self, forKey: .preferences)
-        categories = try values.decode([FinanceCategory].self, forKey: .categories)
-        wallets = try values.decode([FinanceWallet].self, forKey: .wallets)
-        recurringRules = try values.decodeIfPresent([RecurringRule].self, forKey: .recurringRules) ?? []
-    }
-}
-
-enum FinanceBackupError: Error { case unsupportedVersion }
-
