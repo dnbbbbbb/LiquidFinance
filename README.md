@@ -24,7 +24,7 @@ Chọn scheme `LiquidFinance` và một iPhone Simulator để chạy app hoặc
 
 ## GitHub Actions
 
-Workflow `.github/workflows/ios.yml` chạy unit tests trên iPhone 16 Simulator và tạo artifact IPA. Có thể tải artifact trong phần **Actions → workflow run → Artifacts**.
+Workflow `.github/workflows/ios.yml` tự chọn một iPhone Simulator đang có trên runner để chạy unit tests, tránh cố định tên máy có thể đã bị gỡ khỏi image, rồi tạo artifact IPA. Có thể tải artifact trong phần **Actions → workflow run → Artifacts**.
 
 Nếu chưa thêm thông tin ký, workflow đóng gói `LiquidFinance-unsigned.ipa` để kiểm tra build. Để Actions tạo IPA cài được/phát hành, thêm các repository secrets: `IOS_CERTIFICATE_BASE64` (tệp `.p12` dạng base64), `IOS_CERTIFICATE_PASSWORD`, `IOS_PROVISIONING_PROFILE_BASE64` (profile dạng base64), `IOS_PROFILE_NAME` (tên profile), và `IOS_TEAM_ID`. Secret tùy chọn `IOS_EXPORT_METHOD` nhận `ad-hoc` (mặc định), `development`, `enterprise` hoặc `app-store-connect`. Certificate, profile, team và bundle ID `vn.liquidfinance.app` phải khớp nhau.
 
@@ -33,6 +33,7 @@ Nếu chưa thêm thông tin ký, workflow đóng gói `LiquidFinance-unsigned.i
 Các unit test kiểm tra số dư, tổng theo tháng, sửa giao dịch, lưu/đọc dữ liệu và cập nhật ngân sách. Chạy trên máy Mac có Xcode:
 
 ```sh
+SIMULATOR_ID="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ { print $2; exit }')"
 xcodebuild test -project LiquidFinance.xcodeproj -scheme LiquidFinance \
-  -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' CODE_SIGNING_ALLOWED=NO
+  -destination "platform=iOS Simulator,id=$SIMULATOR_ID" CODE_SIGNING_ALLOWED=NO
 ```
