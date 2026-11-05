@@ -69,6 +69,7 @@ private struct CategoryEditorView: View {
     @State private var name: String
     @State private var type: TransactionType
     @State private var parentID: String
+    @State private var symbol: String
     @State private var error = false
 
     init(store: FinanceStore, category: FinanceCategory? = nil) {
@@ -76,6 +77,7 @@ private struct CategoryEditorView: View {
         _name = State(initialValue: category?.name ?? "")
         _type = State(initialValue: category?.type ?? .expense)
         _parentID = State(initialValue: category?.parentID ?? "")
+        _symbol = State(initialValue: category?.symbol ?? "circle.grid.2x2.fill")
     }
 
     var body: some View {
@@ -89,6 +91,21 @@ private struct CategoryEditorView: View {
                         ForEach(store.categories(for: type).filter { $0.parentID == nil && $0.id != category?.id }) { item in Text(item.name).tag(item.id) }
                     }
                 }
+                Section("Biểu tượng") {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 12) {
+                        ForEach(Self.symbols, id: \.self) { item in
+                            Button { symbol = item } label: {
+                                Image(systemName: item)
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(symbol == item ? .white : FinanceStyle.purple)
+                                    .frame(width: 42, height: 42)
+                                    .background(symbol == item ? FinanceStyle.purple : FinanceStyle.purpleLight, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
                 Text("Danh mục con sẽ được hiển thị bên trong nhóm cha.").font(.system(size: 13)).foregroundStyle(FinanceStyle.muted)
             }
             .navigationTitle(category == nil ? "Danh mục mới" : "Sửa danh mục")
@@ -100,6 +117,7 @@ private struct CategoryEditorView: View {
             .alert("Nhập tên danh mục", isPresented: $error) { Button("Đã hiểu", role: .cancel) { } }
             .onChange(of: type) { _ in parentID = "" }
         }
+        .background(KeyboardDismissOnTap())
         .presentationDetents([.medium, .large])
     }
 
@@ -111,10 +129,12 @@ private struct CategoryEditorView: View {
             name: cleanName,
             type: type,
             parentID: parentID.isEmpty ? nil : parentID,
-            symbol: category?.symbol ?? "circle.grid.2x2.fill"
+            symbol: symbol
         ))
         dismiss()
     }
+
+    private static let symbols = ["circle.grid.2x2.fill", "fork.knife", "cart.fill", "car.fill", "house.fill", "bolt.fill", "heart.fill", "cross.case.fill", "book.closed.fill", "gamecontroller.fill", "gift.fill", "briefcase.fill", "bag.fill", "phone.fill", "airplane", "pawprint.fill", "music.note", "creditcard.fill", "banknote.fill", "ellipsis.circle.fill"]
 }
 
 struct WalletManagementView: View {
@@ -171,6 +191,7 @@ struct WalletManagementView: View {
 struct RecurringManagementView: View {
     @ObservedObject var store: FinanceStore
     @Environment(\.dismiss) private var dismiss
+    @State private var editingRule: RecurringRule?
 
     var body: some View {
         NavigationStack {
@@ -184,12 +205,17 @@ struct RecurringManagementView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(rule.title).font(.system(size: 15, weight: .semibold))
-                                Text("\(rule.frequency.title) · kế tiếp \(DateText.dayMonth(rule.nextDate))")
+                                Text("\(rule.frequency.title) · kế tiếp \(DateText.dateTime(rule.nextDate))")
                                     .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
                             }
                             Spacer()
                             Text(MoneyText.string(rule.amount, currencyCode: store.preferences.currencyCode))
                                 .font(.system(size: 13, weight: .bold)).foregroundStyle(FinanceStyle.ink)
+                            Button { editingRule = rule } label: {
+                                Image(systemName: "pencil.circle.fill")
+                                    .font(.system(size: 21)).foregroundStyle(FinanceStyle.purple)
+                            }
+                            .buttonStyle(.plain)
                         }
                         Toggle("Đang hoạt động", isOn: Binding(
                             get: { rule.isEnabled },
@@ -205,6 +231,55 @@ struct RecurringManagementView: View {
             .navigationTitle("Giao dịch định kỳ")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Đóng") { dismiss() } } }
+            .sheet(item: $editingRule) { rule in
+                RecurringRuleEditor(store: store, rule: rule)
+            }
+        }
+    }
+}
+
+private struct RecurringRuleEditor: View {
+    @ObservedObject var store: FinanceStore
+    @Environment(\.dismiss) private var dismiss
+    let rule: RecurringRule
+    @State private var frequency: RecurrenceFrequency
+    @State private var nextDate: Date
+
+    init(store: FinanceStore, rule: RecurringRule) {
+        self.store = store
+        self.rule = rule
+        _frequency = State(initialValue: rule.frequency)
+        _nextDate = State(initialValue: rule.nextDate)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Giao dịch") {
+                    Text(rule.title)
+                    Text(MoneyText.string(rule.amount, currencyCode: store.preferences.currencyCode))
+                        .foregroundStyle(FinanceStyle.muted)
+                }
+                Section("Lịch lặp") {
+                    Picker("Chu kỳ", selection: $frequency) {
+                        ForEach(RecurrenceFrequency.allCases) { Text($0.title).tag($0) }
+                    }
+                    DatePicker("Lần tiếp theo", selection: $nextDate, displayedComponents: [.date, .hourAndMinute])
+                }
+            }
+            .navigationTitle("Sửa lịch định kỳ")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Hủy") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Lưu") {
+                        var updated = rule
+                        updated.frequency = frequency
+                        updated.nextDate = nextDate
+                        store.setRecurringRule(updated)
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }
@@ -247,6 +322,7 @@ private struct WalletEditorView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Lưu", action: save) }
             }
         }
+        .background(KeyboardDismissOnTap())
         .presentationDetents([.medium, .large])
     }
 

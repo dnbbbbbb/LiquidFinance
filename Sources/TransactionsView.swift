@@ -14,6 +14,7 @@ struct TransactionsView: View {
     @State private var timeFilterEnabled = false
     @State private var rangeStart = Calendar.current.date(byAdding: .month, value: -1, to: .now) ?? .now
     @State private var rangeEnd = Date.now
+    @State private var selectedMonth = Date.now
     @State private var editingTransaction: FinanceTransaction?
 
     private var filteredTransactions: [FinanceTransaction] {
@@ -34,6 +35,7 @@ struct TransactionsView: View {
                 pageHeader
                 searchField
                 filterPicker
+                MonthNavigator(month: $selectedMonth)
                 DateRangeFilterView(isEnabled: $timeFilterEnabled, start: $rangeStart, end: $rangeEnd)
 
                 if filteredTransactions.isEmpty {
@@ -73,6 +75,12 @@ struct TransactionsView: View {
         .background(FinanceStyle.background.ignoresSafeArea())
         .sheet(item: $editingTransaction) { transaction in
             TransactionEditorView(store: store, transaction: transaction)
+        }
+        .onChange(of: selectedMonth) { month in
+            let start = FinanceDate.startOfMonth(containing: month)
+            rangeStart = start
+            rangeEnd = Calendar.current.date(byAdding: DateComponents(month: 1, second: -1), to: start) ?? month
+            timeFilterEnabled = true
         }
     }
 
@@ -163,6 +171,10 @@ struct TransactionEditorView: View {
         store.categories(for: type)
     }
 
+    private var favouriteCategories: [FinanceCategory] {
+        Array(categories.filter { $0.parentID == nil }.prefix(8))
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -198,8 +210,8 @@ struct TransactionEditorView: View {
                 }
 
                 Section("Danh mục") {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), spacing: 10)], spacing: 10) {
-                        ForEach(categories) { item in
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 10) {
+                        ForEach(favouriteCategories) { item in
                             Button { category = item } label: {
                                 VStack(spacing: 7) {
                                     CategoryIcon(category: item, size: 42)
@@ -218,6 +230,15 @@ struct TransactionEditorView: View {
                         }
                     }
                     .padding(.vertical, 3)
+                    if categories.count > favouriteCategories.count {
+                        DisclosureGroup("Chọn danh mục khác") {
+                            Picker("Danh mục", selection: $category) {
+                                ForEach(categories) { item in
+                                    Text(categoryTitle(item)).tag(item)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Section("Ghi chú") {
@@ -247,6 +268,10 @@ struct TransactionEditorView: View {
                     Button("Lưu") { save() }
                         .fontWeight(.bold)
                 }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Xong") { Keyboard.dismiss() }
+                }
             }
             .onChange(of: type) { newType in
                 if !categoriesFor(newType).contains(category) {
@@ -259,6 +284,7 @@ struct TransactionEditorView: View {
                 Text("Vui lòng nhập số tiền lớn hơn 0.")
             }
         }
+        .background(KeyboardDismissOnTap())
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }

@@ -54,6 +54,7 @@ struct ReportsView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 20) {
                 header
+                MonthNavigator(month: $month)
                 DateRangeFilterView(isEnabled: $timeFilterEnabled, start: $rangeStart, end: $rangeEnd)
                 summaryCards
                 trendCard
@@ -82,19 +83,6 @@ struct ReportsView: View {
         }
     }
 
-    private var monthPicker: some View {
-        HStack {
-            Button { changeMonth(-1) } label: { Image(systemName: "chevron.left").frame(width: 38, height: 38) }
-                .accessibilityLabel("Tháng trước")
-            Spacer()
-            Text(DateText.monthYear(month)).font(.system(size: 15, weight: .semibold))
-            Spacer()
-            Button { changeMonth(1) } label: { Image(systemName: "chevron.right").frame(width: 38, height: 38) }
-                .accessibilityLabel("Tháng sau")
-        }
-        .foregroundStyle(FinanceStyle.ink)
-        .background(FinanceStyle.card, in: Capsule())
-    }
 
     private var summaryCards: some View {
         HStack(spacing: 12) {
@@ -201,8 +189,5 @@ struct ReportsView: View {
         .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
-    private func changeMonth(_ offset: Int) {
-        if let next = Calendar.current.date(byAdding: .month, value: offset, to: month) { month = next }
-    }
 }
 

@@ -151,15 +151,40 @@ struct SpendingBudget: Identifiable, Codable, Equatable {
 }
 
 enum RecurrenceFrequency: String, Codable, CaseIterable, Identifiable {
-    case daily, weekly, monthly, yearly
+    case daily, weekdays, weekly, biweekly, monthly, quarterly, yearly
     var id: String { rawValue }
     var title: String {
-        switch self { case .daily: return "Hằng ngày"; case .weekly: return "Hằng tuần"; case .monthly: return "Hằng tháng"; case .yearly: return "Hằng năm" }
+        switch self {
+        case .daily: return "Hằng ngày"
+        case .weekdays: return "Thứ Hai – Thứ Sáu"
+        case .weekly: return "Hằng tuần"
+        case .biweekly: return "Mỗi 2 tuần"
+        case .monthly: return "Hằng tháng"
+        case .quarterly: return "Mỗi quý"
+        case .yearly: return "Hằng năm"
+        }
     }
     func next(after date: Date, calendar: Calendar = .current) -> Date {
-        let component: Calendar.Component
-        switch self { case .daily: component = .day; case .weekly: component = .weekOfYear; case .monthly: component = .month; case .yearly: component = .year }
-        return calendar.date(byAdding: component, value: 1, to: date) ?? date.addingTimeInterval(86_400)
+        switch self {
+        case .daily:
+            return calendar.date(byAdding: .day, value: 1, to: date) ?? date.addingTimeInterval(86_400)
+        case .weekdays:
+            var next = calendar.date(byAdding: .day, value: 1, to: date) ?? date.addingTimeInterval(86_400)
+            while calendar.isDateInWeekend(next) {
+                next = calendar.date(byAdding: .day, value: 1, to: next) ?? next.addingTimeInterval(86_400)
+            }
+            return next
+        case .weekly:
+            return calendar.date(byAdding: .weekOfYear, value: 1, to: date) ?? date.addingTimeInterval(86_400)
+        case .biweekly:
+            return calendar.date(byAdding: .weekOfYear, value: 2, to: date) ?? date.addingTimeInterval(86_400)
+        case .monthly:
+            return calendar.date(byAdding: .month, value: 1, to: date) ?? date.addingTimeInterval(86_400)
+        case .quarterly:
+            return calendar.date(byAdding: .month, value: 3, to: date) ?? date.addingTimeInterval(86_400)
+        case .yearly:
+            return calendar.date(byAdding: .year, value: 1, to: date) ?? date.addingTimeInterval(86_400)
+        }
     }
 }
 

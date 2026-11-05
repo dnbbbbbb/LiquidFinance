@@ -4,7 +4,6 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @ObservedObject var store: FinanceStore
-    @State private var openingBalanceText = ""
     @State private var showingShareSheet = false
     @State private var exportURL: URL?
     @State private var showingExportError = false
@@ -38,6 +37,7 @@ struct SettingsView: View {
                 header
                 preferencesSection
                 managementSection
+                recurringSection
                 dataSection
                 aboutSection
             }
@@ -47,7 +47,6 @@ struct SettingsView: View {
         }
         .background(FinanceStyle.background.ignoresSafeArea())
         .onAppear {
-            openingBalanceText = AmountInput.format(store.preferences.openingBalance)
             reminderTime = Calendar.current.date(bySettingHour: store.preferences.reminderHour, minute: store.preferences.reminderMinute, second: 0, of: .now) ?? .now
             if store.preferences.reminderEnabled { scheduleReminder(true) }
         }
@@ -85,7 +84,6 @@ struct SettingsView: View {
                     guard let backupToRestore else { return }
                     do {
                         try store.restoreBackup(backupToRestore)
-                        openingBalanceText = AmountInput.format(store.preferences.openingBalance)
                     } catch { showingExportError = true }
                     self.backupToRestore = nil
                     confirmation = nil
@@ -94,7 +92,6 @@ struct SettingsView: View {
             } else if confirmation == .reset {
                 Button("Xóa toàn bộ dữ liệu", role: .destructive) {
                     store.clearAllData()
-                    openingBalanceText = "0"
                     confirmation = nil
                 }
                 Button("Hủy", role: .cancel) { confirmation = nil }
@@ -126,33 +123,6 @@ struct SettingsView: View {
                 .font(.system(size: 14))
                 .foregroundStyle(FinanceStyle.muted)
         }
-    }
-
-    private var balanceSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label("Số dư ban đầu chưa gán ví", systemImage: "banknote")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(FinanceStyle.ink)
-            Text("Khoản này được cộng vào tổng số dư. Bạn có thể nhập số dư riêng cho từng ví trong phần Quản lý ví.")
-                .font(.system(size: 13))
-                .foregroundStyle(FinanceStyle.muted)
-            HStack(spacing: 10) {
-                AmountTextField(text: $openingBalanceText, fontSize: 20).frame(height: 34).accessibilityLabel("Số dư ban đầu chưa gán ví")
-                Text(store.preferences.currencyCode)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(FinanceStyle.muted)
-                Button("Lưu") { saveOpeningBalance() }
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 15)
-                    .padding(.vertical, 10)
-                    .background(FinanceStyle.purple, in: Capsule())
-            }
-            .padding(12)
-            .background(FinanceStyle.background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        }
-        .padding(17)
-        .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var preferencesSection: some View {
@@ -244,10 +214,21 @@ struct SettingsView: View {
             Button { management = .wallets } label: {
                 settingsActionRow(icon: "wallet.bifold", title: "Ví và nguồn tiền", color: FinanceStyle.purple)
             }.buttonStyle(.plain)
-            Divider().overlay(FinanceStyle.line)
+        }
+        .padding(17)
+        .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    private var recurringSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Định kỳ", systemImage: "arrow.triangle.2.circlepath")
+                .font(.system(size: 15, weight: .bold)).foregroundStyle(FinanceStyle.ink)
             Button { management = .recurring } label: {
                 settingsActionRow(icon: "arrow.clockwise", title: "Giao dịch định kỳ", color: FinanceStyle.purple)
-            }.buttonStyle(.plain)
+            }
+            .buttonStyle(.plain)
+            Text("Lặp theo ngày, ngày làm việc, tuần, 2 tuần, tháng, quý hoặc năm.")
+                .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
         }
         .padding(17)
         .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -309,11 +290,6 @@ struct SettingsView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)
-    }
-
-    private func saveOpeningBalance() {
-        guard let amount = AmountInput.parse(openingBalanceText) else { return }
-        store.updatePreferences { $0.openingBalance = amount }
     }
 
     private func scheduleReminder(_ enabled: Bool) {

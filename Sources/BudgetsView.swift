@@ -83,17 +83,7 @@ struct BudgetsView: View {
     }
 
     private var monthPicker: some View {
-        HStack {
-            Button { changeMonth(-1) } label: { Image(systemName: "chevron.left").frame(width: 38, height: 38) }
-                .accessibilityLabel("Tháng trước")
-            Spacer()
-            Text(DateText.monthYear(month)).font(.system(size: 15, weight: .semibold))
-            Spacer()
-            Button { changeMonth(1) } label: { Image(systemName: "chevron.right").frame(width: 38, height: 38) }
-                .accessibilityLabel("Tháng sau")
-        }
-        .foregroundStyle(FinanceStyle.ink)
-        .background(FinanceStyle.card, in: Capsule())
+        MonthNavigator(month: $month)
     }
 
     private var overviewCard: some View {
@@ -171,9 +161,6 @@ struct BudgetsView: View {
         .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
-    private func changeMonth(_ offset: Int) {
-        if let next = Calendar.current.date(byAdding: .month, value: offset, to: month) { month = next }
-    }
 }
 
 struct BudgetEditorView: View {
@@ -235,6 +222,7 @@ struct BudgetEditorView: View {
                 Text("Nhập giới hạn lớn hơn 0.")
             }
         }
+        .background(KeyboardDismissOnTap())
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }

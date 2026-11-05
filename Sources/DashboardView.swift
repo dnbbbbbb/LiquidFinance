@@ -52,33 +52,7 @@ struct DashboardView: View {
     }
 
     private var monthPicker: some View {
-        HStack(spacing: 14) {
-            Button { moveMonth(by: -1) } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(FinanceStyle.muted)
-                    .frame(width: 34, height: 34)
-                    .background(FinanceStyle.card, in: Circle())
-            }
-            .accessibilityLabel("Tháng trước")
-            Text(DateText.monthYear(month))
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(FinanceStyle.ink)
-                .frame(minWidth: 130)
-            Button { moveMonth(by: 1) } label: {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(FinanceStyle.muted)
-                    .frame(width: 34, height: 34)
-                    .background(FinanceStyle.card, in: Circle())
-            }
-            .accessibilityLabel("Tháng sau")
-            Spacer()
-            Text("THÁNG")
-                .font(.system(size: 10, weight: .bold))
-                .tracking(1)
-                .foregroundStyle(FinanceStyle.muted)
-        }
+        MonthNavigator(month: $month)
     }
 
     private var balanceCard: some View {
@@ -226,9 +200,6 @@ struct DashboardView: View {
         .padding(.top, 2)
     }
 
-    private func moveMonth(by value: Int) {
-        if let next = Calendar.current.date(byAdding: .month, value: value, to: month) { month = next }
-    }
 }
 
 struct TransactionRow: View {
@@ -243,7 +214,7 @@ struct TransactionRow: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(FinanceStyle.ink)
                     .lineLimit(1)
-                Text("\(transaction.category.rawValue) · \(DateText.dayMonth(transaction.date))")
+                Text("\(transaction.category.rawValue) · \(DateText.dateTime(transaction.date))")
                     .font(.system(size: 12))
                     .foregroundStyle(FinanceStyle.muted)
                     .lineLimit(1)

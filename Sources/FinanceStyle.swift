@@ -78,6 +78,17 @@ enum DateText {
         formatter.dateFormat = "M/yy"
         return formatter.string(from: date)
     }
+
+    static func time(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+
+    static func dateTime(_ date: Date) -> String {
+        "\(dayMonth(date)) · \(time(date))"
+    }
 }
 
 struct CategoryIcon: View {

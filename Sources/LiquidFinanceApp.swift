@@ -7,6 +7,7 @@ struct LiquidFinanceApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(store: store)
+                .environment(\.locale, Locale(identifier: "vi_VN"))
         }
     }
 }

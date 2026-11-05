@@ -16,6 +16,8 @@
 - Sao lưu/khôi phục toàn bộ dữ liệu JSON, xuất giao dịch CSV và xóa dữ liệu.
 - Chọn giao diện sáng, tối hoặc tự động theo thiết bị.
 - Nhắc nhập giao dịch cuối ngày với giờ do bạn chọn.
+- App icon Liquid Finance, định dạng ngày giờ `dd/MM/yyyy · HH:mm`, và chọn tháng/năm trực tiếp trên màn hình Tổng quan, Giao dịch, Ngân sách và Báo cáo.
+- Chọn biểu tượng khi tạo danh mục; tám danh mục dùng nhiều nhất hiển thị trước trong biểu mẫu giao dịch.
 - Lưu trữ cục bộ bằng `UserDefaults`; không cần đăng nhập hoặc kết nối mạng.
 
 ## Mở bằng Xcode
