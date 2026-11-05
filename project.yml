@@ -1,0 +1,49 @@
+name: LiquidFinance
+options:
+  bundleIdPrefix: vn.liquidfinance
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  developmentLanguage: vi
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_CFBundleDisplayName: "Ví Tài Chính"
+    INFOPLIST_KEY_UIUserInterfaceStyle: Light
+    INFOPLIST_KEY_UILaunchScreen_Generation: YES
+targets:
+  LiquidFinance:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: vn.liquidfinance.app
+        PRODUCT_NAME: LiquidFinance
+        CODE_SIGN_STYLE: Automatic
+  LiquidFinanceTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: LiquidFinance
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: vn.liquidfinance.tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  LiquidFinance:
+    build:
+      targets:
+        LiquidFinance: all
+        LiquidFinanceTests: [test]
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - LiquidFinanceTests
