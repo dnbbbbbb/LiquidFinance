@@ -1,7 +1,6 @@
 import Foundation
 import Combine
 import CloudKit
-import Security
 #if canImport(WidgetKit)
 import WidgetKit
 #endif
@@ -31,28 +30,13 @@ final class FinanceStore: ObservableObject {
     private let iCloudSyncDateKey = "finance.icloud.last-sync"
     private let widgetDefaults = UserDefaults(suiteName: "group.vn.liquidfinance")
 
-    /// CloudKit may terminate the process before an async error is delivered when the installed
-    /// signature does not grant this container. This is common after an IPA is re-signed with a
-    /// valid certificate/profile that does not include the app's iCloud capability. Never create
-    /// a CKContainer unless this entitlement is present in the running app.
+    /// Keep CloudKit out of unit-test processes. iOS does not expose a supported API for an app
+    /// to inspect its own signing entitlements at runtime, so entitlement validation belongs in
+    /// the signing pipeline rather than using macOS-only Security APIs in the app target.
     private static var cloudKitDisabled: Bool {
         let environment = ProcessInfo.processInfo.environment
         return environment["LIQUIDFINANCE_DISABLE_CLOUDKIT"] == "1"
             || environment["XCTestConfigurationFilePath"] != nil
-            || !hasICloudContainerEntitlement
-    }
-
-    private static var hasICloudContainerEntitlement: Bool {
-        guard let task = SecTaskCreateFromSelf(nil),
-              let containers = SecTaskCopyValueForEntitlement(
-                  task,
-                  "com.apple.developer.icloud-container-identifiers" as CFString,
-                  nil
-              ) as? [String]
-        else {
-            return false
-        }
-        return containers.contains(iCloudContainerIdentifier)
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -79,9 +63,6 @@ final class FinanceStore: ObservableObject {
             defaults.set(Date.now, forKey: dataUpdatedKey)
         }
         syncWidgetSnapshot()
-        if !Self.cloudKitDisabled {
-            Task { await refreshICloudStatus() }
-        }
     }
 
     var balance: Double {
@@ -326,7 +307,7 @@ final class FinanceStore: ObservableObject {
                 }
             case .noAccount, .restricted:
                 iCloudStatus = "Chưa đăng nhập iCloud"
-            case .couldNotDetermine:
+            case .couldNotDetermine, .temporarilyUnavailable:
                 iCloudStatus = "Lỗi mạng"
             @unknown default:
                 iCloudStatus = "Lỗi mạng"
