@@ -70,7 +70,7 @@ enum DateText {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "vi_VN")
         formatter.dateFormat = "'Tháng' MM/'năm' yyyy"
-        return formatter.string(from: date).capitalized
+        return formatter.string(from: date)
     }
 
     static func compactMonth(_ date: Date) -> String {

@@ -22,6 +22,8 @@ targets:
     sources:
       - path: Sources
       - path: Assets.xcassets
+    info:
+      path: LiquidFinance-Info.plist
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: vn.liquidfinance.app
@@ -29,6 +31,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: LiquidFinance.entitlements
+        GENERATE_INFOPLIST_FILE: NO
     dependencies:
       - target: LiquidFinanceWidgets
         embed: true
