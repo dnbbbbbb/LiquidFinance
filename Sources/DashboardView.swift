@@ -101,9 +101,7 @@ struct DashboardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: FinanceStyle.purple.opacity(0.22), radius: 18, x: 0, y: 10)
         .onAppear { store.syncBalanceVisibility(isBalanceHidden) }
-        .onChange(of: isBalanceHidden) { isHidden in
-            store.syncBalanceVisibility(isHidden)
-        }
+        .onChange(of: isBalanceHidden) { store.syncBalanceVisibility($0) }
     }
 
     private func balanceSummary(title: String, amount: Double, symbol: String, tint: Color) -> some View {

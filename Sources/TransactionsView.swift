@@ -176,7 +176,7 @@ struct TransactionEditorView: View {
         _category = State(initialValue: transaction?.category ?? .food)
         let existingWallet = store.wallets.first(where: { $0.id == transaction?.walletID }) ?? store.wallets.first(where: { $0.name == transaction?.account })
         _walletID = State(initialValue: existingWallet?.id ?? store.mostRecentlyUsedWallet.id)
-        let transferDestination: UUID? = transaction.flatMap { (item: FinanceTransaction) -> UUID? in
+        let transferDestination = transaction.flatMap { item in
             guard let transferID = item.transferID else { return nil }
             return store.transactions.first(where: { $0.transferID == transferID && $0.walletID != item.walletID })?.walletID
         }
