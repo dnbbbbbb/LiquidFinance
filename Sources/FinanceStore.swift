@@ -212,6 +212,12 @@ final class FinanceStore: ObservableObject {
         persist(preferences, key: preferencesKey)
     }
 
+    func syncBalanceVisibility(_ isHidden: Bool) {
+        guard preferences.hidesBalance != isHidden else { return }
+        preferences.hidesBalance = isHidden
+        persist(preferences, key: preferencesKey)
+    }
+
     func clearAllData() {
         transactions = []
         budgets = []
@@ -225,6 +231,7 @@ final class FinanceStore: ObservableObject {
         wallets = [FinanceWallet(name: "Tiền mặt"), FinanceWallet(name: "Tài khoản ngân hàng", kind: "Tài khoản ngân hàng")]
         recurringRules = []
         defaults.removeObject(forKey: recurringKey)
+        defaults.set(false, forKey: "isBalanceHidden")
         syncWidgetSnapshot()
     }
 
@@ -238,6 +245,7 @@ final class FinanceStore: ObservableObject {
         transactions = backup.transactions; budgets = backup.budgets; preferences = backup.preferences
         categories = backup.categories; wallets = backup.wallets
         recurringRules = backup.recurringRules
+        defaults.set(preferences.hidesBalance, forKey: "isBalanceHidden")
         persist(transactions, key: transactionsKey); persist(budgets, key: budgetsKey); persist(preferences, key: preferencesKey)
         persist(categories, key: categoriesKey); persist(wallets, key: walletsKey); persist(recurringRules, key: recurringKey)
     }

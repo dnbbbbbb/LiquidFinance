@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var confirmation: Confirmation?
     @State private var reminderTime = Date()
     @State private var notificationUnavailable = false
+    @AppStorage("isBalanceHidden") private var isBalanceHidden = false
 
     private enum ManagementSheet: String, Identifiable { case categories, wallets, recurring; var id: String { rawValue } }
     private enum Confirmation: Equatable { case reset, restore }
@@ -59,6 +60,8 @@ struct SettingsView: View {
             store.updatePreferences { $0.reminderHour = parts.hour ?? 20; $0.reminderMinute = parts.minute ?? 0 }
             if store.preferences.reminderEnabled { scheduleReminder(true) }
         }
+        .onAppear { store.syncBalanceVisibility(isBalanceHidden) }
+        .onChange(of: isBalanceHidden) { store.syncBalanceVisibility($0) }
         .sheet(isPresented: $showingShareSheet) {
             if let exportURL {
                 ActivityShareSheet(items: [exportURL])
@@ -168,10 +171,7 @@ struct SettingsView: View {
                 .labelsHidden().tint(FinanceStyle.purple).fixedSize()
             }
             Divider().overlay(FinanceStyle.line).padding(.vertical, 8)
-            Toggle(isOn: Binding(
-                get: { store.preferences.hidesBalance },
-                set: { value in store.updatePreferences { $0.hidesBalance = value } }
-            )) {
+            Toggle(isOn: $isBalanceHidden) {
                 Label("Ẩn số dư trên màn hình", systemImage: "eye.slash")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(FinanceStyle.ink)

@@ -6,6 +6,7 @@ struct DashboardView: View {
     let openTransactions: () -> Void
     @State private var month = Date()
     @State private var editingTransaction: FinanceTransaction?
+    @AppStorage("isBalanceHidden") private var isBalanceHidden = false
 
     private var monthTransactions: [FinanceTransaction] { store.transactions(in: month).sorted { $0.date > $1.date } }
 
@@ -63,24 +64,26 @@ struct DashboardView: View {
                     .foregroundStyle(.white.opacity(0.78))
                 Spacer()
                 Button {
-                    store.updatePreferences { $0.hidesBalance.toggle() }
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isBalanceHidden.toggle()
+                    }
                 } label: {
-                    Image(systemName: store.preferences.hidesBalance ? "eye.slash" : "eye")
+                    Image(systemName: isBalanceHidden ? "eye.slash.fill" : "eye.fill")
                         .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(.white.opacity(0.85))
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(store.preferences.hidesBalance ? "Hiện số dư" : "Ẩn số dư")
-                .accessibilityHint(store.preferences.hidesBalance ? "Chạm để hiện tổng số dư" : "Chạm để ẩn tổng số dư")
+                .accessibilityLabel(isBalanceHidden ? "Hiện số dư" : "Ẩn số dư")
+                .accessibilityHint(isBalanceHidden ? "Chạm để hiện tổng số dư" : "Chạm để ẩn tổng số dư")
             }
-            Text(store.preferences.hidesBalance ? "••••••••" : MoneyText.string(store.balance, currencyCode: store.preferences.currencyCode))
+            Text(isBalanceHidden ? "•••••••• đ" : MoneyText.string(store.balance, currencyCode: store.preferences.currencyCode))
                 .font(.system(size: 32, weight: .bold, design: .rounded))
                 .minimumScaleFactor(0.68)
                 .lineLimit(1)
                 .foregroundStyle(.white)
-                .accessibilityLabel(store.preferences.hidesBalance ? "Số dư đã ẩn" : "Số dư \(MoneyText.string(store.balance, currencyCode: store.preferences.currencyCode))")
+                .accessibilityLabel(isBalanceHidden ? "Số dư đã ẩn" : "Số dư \(MoneyText.string(store.balance, currencyCode: store.preferences.currencyCode))")
             HStack(spacing: 0) {
                 balanceSummary(title: "Thu nhập", amount: store.total(for: .income, in: month), symbol: "arrow.down.left", tint: Color(hex: 0x8FE4BD))
                 Spacer(minLength: 12)
@@ -92,14 +95,13 @@ struct DashboardView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 20)
         .background(
-            LinearGradient(colors: [Color(hex: 0x7970FF), Color(hex: 0x5147D5)], startPoint: .topLeading, endPoint: .bottomTrailing),
-            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
+            LinearGradient(colors: [Color(hex: 0x5545B8), Color(hex: 0x342774)], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
         )
-        .overlay(alignment: .topTrailing) {
-            Circle().fill(.white.opacity(0.05)).frame(width: 160).offset(x: 40, y: -65).clipped()
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: FinanceStyle.purple.opacity(0.22), radius: 18, x: 0, y: 10)
+        .onAppear { store.syncBalanceVisibility(isBalanceHidden) }
+        .onChange(of: isBalanceHidden) { store.syncBalanceVisibility($0) }
     }
 
     private func balanceSummary(title: String, amount: Double, symbol: String, tint: Color) -> some View {
@@ -107,7 +109,7 @@ struct DashboardView: View {
             Label(title, systemImage: symbol)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white.opacity(0.78))
-            Text(store.preferences.hidesBalance ? "••••" : MoneyText.string(amount, currencyCode: store.preferences.currencyCode))
+            Text(isBalanceHidden ? "•••••••• đ" : MoneyText.string(amount, currencyCode: store.preferences.currencyCode))
                 .font(.system(size: 15, weight: .bold, design: .rounded))
                 .minimumScaleFactor(0.72)
                 .lineLimit(1)

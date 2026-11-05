@@ -203,26 +203,32 @@ struct MonthNavigator: View {
     @State private var showingPicker = false
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 4) {
             Button { moveMonth(-1) } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 13, weight: .bold))
-                    .frame(width: 38, height: 38)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("Tháng trước")
 
             Button { showingPicker = true } label: {
                 Label(DateText.monthYear(month), systemImage: "calendar")
                     .font(.system(size: 15, weight: .semibold))
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("Chọn tháng và năm")
 
             Button { moveMonth(1) } label: {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .bold))
-                    .frame(width: 38, height: 38)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("Tháng sau")
         }
         .foregroundStyle(FinanceStyle.ink)
@@ -234,7 +240,8 @@ struct MonthNavigator: View {
     }
 
     private func moveMonth(_ offset: Int) {
-        month = Calendar.current.date(byAdding: .month, value: offset, to: month) ?? month
+        let currentMonth = FinanceDate.startOfMonth(containing: month)
+        month = Calendar.current.date(byAdding: .month, value: offset, to: currentMonth) ?? month
     }
 }
 
