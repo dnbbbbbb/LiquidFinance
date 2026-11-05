@@ -25,6 +25,16 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate --spec project.yml
 
+      - name: Validate WidgetKit extension metadata
+        run: |
+          plutil -lint Widgets/Info.plist
+          EXTENSION_POINT=$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' Widgets/Info.plist)
+          test "$EXTENSION_POINT" = "com.apple.widgetkit-extension"
+          xcodebuild -showBuildSettings \
+            -project LiquidFinance.xcodeproj \
+            -target LiquidFinanceWidgets \
+            -sdk iphonesimulator | grep -q 'PRODUCT_BUNDLE_IDENTIFIER = vn.liquidfinance.app.widgets'
+
       - name: Prepare build output directory
         run: mkdir -p build
 

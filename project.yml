@@ -37,6 +37,7 @@ targets:
         embed: true
   LiquidFinanceWidgets:
     type: app-extension
+    subtype: widgetkit-extension
     platform: iOS
     sources:
       - path: Widgets
@@ -50,6 +51,8 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Widgets/LiquidFinanceWidgets.entitlements
         IPHONEOS_DEPLOYMENT_TARGET: "16.0"
         GENERATE_INFOPLIST_FILE: NO
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
   LiquidFinanceTests:
     type: bundle.unit-test
     platform: iOS
