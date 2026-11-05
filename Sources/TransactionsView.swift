@@ -258,7 +258,7 @@ struct TransactionEditorView: View {
                     DatePicker("Thời gian", selection: $date, displayedComponents: .hourAndMinute)
                     if mode != .transfer {
                         Picker("Ví", selection: $walletID) {
-                            ForEach(store.wallets) { wallet in Text($0.name).tag($0.id) }
+                            ForEach(store.wallets) { wallet in Text(wallet.name).tag(wallet.id) }
                         }
                     }
                 }
