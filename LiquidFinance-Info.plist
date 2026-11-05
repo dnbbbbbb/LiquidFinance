@@ -2,15 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
     <key>CFBundleDevelopmentRegion</key><string>$(DEVELOPMENT_LANGUAGE)</string>
-    <key>CFBundleDisplayName</key><string>Ví Tài Chính</string>
+    <key>CFBundleDisplayName</key><string>LiquidGlass</string>
     <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>LSRequiresIPhoneOS</key><true/>
-    <key>CFBundleShortVersionString</key><string>4.0.0</string>
-    <key>CFBundleVersion</key><string>40</string>
+    <key>CFBundleShortVersionString</key><string>4.1.0</string>
+    <key>CFBundleVersion</key><string>41</string>
     <key>CFBundleURLTypes</key><array><dict>
         <key>CFBundleURLName</key><string>vn.liquidfinance.app</string>
         <key>CFBundleURLSchemes</key><array><string>liquidfinance</string></array>

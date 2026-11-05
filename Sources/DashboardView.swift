@@ -48,7 +48,7 @@ struct DashboardView: View {
                 .frame(width: 50, height: 50)
                 .background(FinanceStyle.card, in: Circle())
                 .overlay(Circle().stroke(FinanceStyle.line, lineWidth: 1))
-                .accessibilityLabel("Liquid Finance")
+                .accessibilityLabel("LiquidGlass")
         }
     }
 
@@ -218,7 +218,7 @@ struct TransactionRow: View {
     let transaction: FinanceTransaction
     let currencyCode: String
     private var subtitle: String {
-        let categoryName = transaction.transferID == nil ? transaction.category.rawValue : "Chuyển khoản nội bộ"
+        let categoryName = transaction.isInternalTransfer ? "Chuyển khoản nội bộ" : transaction.category.rawValue
         return "\(categoryName) · \(DateText.dateTime(transaction.date))"
     }
 

@@ -19,7 +19,7 @@ struct SettingsView: View {
     private enum Confirmation: Equatable { case reset, restore }
 
     private var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "3.6.0"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "4.1.0"
     }
 
     private struct CurrencyOption: Identifiable {
@@ -55,6 +55,7 @@ struct SettingsView: View {
             reminderTime = Calendar.current.date(bySettingHour: store.preferences.reminderHour, minute: store.preferences.reminderMinute, second: 0, of: .now) ?? .now
             if store.preferences.reminderEnabled { scheduleReminder(true) }
             if store.preferences.budgetAlertsEnabled { configureBudgetAlerts(true) }
+            Task { await store.refreshICloudStatus() }
         }
         .onChange(of: reminderTime) { value in
             let parts = Calendar.current.dateComponents([.hour, .minute], from: value)
@@ -280,6 +281,8 @@ struct SettingsView: View {
             }
             .tint(FinanceStyle.purple)
             HStack {
+                Image(systemName: iCloudStatusIcon)
+                    .foregroundStyle(iCloudStatusColor)
                 Text(store.iCloudStatus)
                 Spacer()
                 if store.iCloudSyncEnabled {
@@ -289,7 +292,11 @@ struct SettingsView: View {
                 }
             }
             .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
-            Text("Lưu bản sao theo tài khoản iCloud của bạn; bản mới hơn sẽ được dùng khi đồng bộ giữa các thiết bị.")
+            if let lastSync = store.lastICloudSyncDate {
+                Text("Cập nhật lần cuối: \(DateText.dateTime(lastSync))")
+                    .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
+            }
+            Text("Tự động đồng bộ hai chiều qua Apple ID khi bạn bật iCloud. Bạn vẫn có thể xuất hoặc nhập JSON nếu không dùng iCloud Drive.")
                 .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
             Divider().overlay(FinanceStyle.line)
             Button { confirmation = .reset } label: {
@@ -299,6 +306,23 @@ struct SettingsView: View {
         }
         .padding(17)
         .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    private var iCloudStatusIcon: String {
+        switch store.iCloudStatus {
+        case "Đang đồng bộ": return "arrow.triangle.2.circlepath.icloud"
+        case "Đã cập nhật": return "checkmark.icloud.fill"
+        case "Chưa đăng nhập iCloud": return "icloud.slash"
+        default: return "exclamationmark.icloud.fill"
+        }
+    }
+
+    private var iCloudStatusColor: Color {
+        switch store.iCloudStatus {
+        case "Đã cập nhật": return FinanceStyle.green
+        case "Lỗi mạng", "Chưa đăng nhập iCloud": return FinanceStyle.red
+        default: return FinanceStyle.purple
+        }
     }
 
     private func settingsActionRow(icon: String, title: String, color: Color) -> some View {
@@ -317,7 +341,7 @@ struct SettingsView: View {
             Image(systemName: "leaf.circle.fill")
                 .font(.system(size: 38))
                 .foregroundStyle(FinanceStyle.green)
-            Text("Liquid Finance")
+            Text("LiquidGlass")
                 .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(FinanceStyle.ink)
             Text("Đơn giản, riêng tư, dành cho bạn · Phiên bản \(appVersion)")
@@ -365,7 +389,7 @@ struct SettingsView: View {
 
     private func exportBackup() {
         do {
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("LiquidFinance-Backup-\(Int(Date().timeIntervalSince1970)).json")
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("LiquidGlass-Backup-\(Int(Date().timeIntervalSince1970)).json")
             try store.backupData().write(to: url, options: .atomic)
             exportURL = url
             showingShareSheet = true
@@ -388,7 +412,7 @@ private enum CSVExporter {
             ]
         }
         let csv = ([header] + rows).map { $0.map(escape).joined(separator: ",") }.joined(separator: "\r\n")
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("LiquidFinance-GiaoDich.csv")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("LiquidGlass-GiaoDich.csv")
         do {
             try Data(csv.utf8).write(to: url, options: .atomic)
             return url

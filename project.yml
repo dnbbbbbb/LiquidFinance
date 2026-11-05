@@ -1,4 +1,4 @@
-name: LiquidFinance
+name: LiquidGlass
 options:
   bundleIdPrefix: vn.liquidfinance
   deploymentTarget:
@@ -10,10 +10,10 @@ settings:
     SWIFT_VERSION: "5.0"
     IPHONEOS_DEPLOYMENT_TARGET: "16.0"
     TARGETED_DEVICE_FAMILY: "1"
-    MARKETING_VERSION: "4.0.0"
-    CURRENT_PROJECT_VERSION: "40"
+    MARKETING_VERSION: "4.1.0"
+    CURRENT_PROJECT_VERSION: "41"
     GENERATE_INFOPLIST_FILE: YES
-    INFOPLIST_KEY_CFBundleDisplayName: "Ví Tài Chính"
+    INFOPLIST_KEY_CFBundleDisplayName: "LiquidGlass"
 targets:
   LiquidFinance:
     type: application
@@ -28,7 +28,7 @@ targets:
     info:
       path: LiquidFinance-Info.plist
       properties:
-        CFBundleDisplayName: "Ví Tài Chính"
+        CFBundleDisplayName: "LiquidGlass"
         CFBundleURLTypes:
           - CFBundleURLName: vn.liquidfinance.app
             CFBundleURLSchemes: [liquidfinance]
@@ -38,6 +38,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: vn.liquidfinance.app
+        # Keep the internal module identifier stable so existing widgets and tests continue to link.
         PRODUCT_NAME: LiquidFinance
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

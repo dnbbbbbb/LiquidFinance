@@ -47,13 +47,13 @@ struct BalanceWidget: Widget {
                     Text(entry.isHidden ? "••••••••" : money(entry.balance, currency: entry.currency))
                         .font(.title3.weight(.bold)).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.6)
                     Spacer()
-                    Text("Liquid Finance").font(.caption2).foregroundStyle(.white.opacity(0.75))
+                    Text("LiquidGlass").font(.caption2).foregroundStyle(.white.opacity(0.75))
                 }
                 .padding()
             }
             .widgetURL(URL(string: "liquidfinance://dashboard"))
         }
-        .configurationDisplayName("Số dư Liquid Finance")
+        .configurationDisplayName("Số dư LiquidGlass")
         .description("Xem nhanh tổng số dư của bạn.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }

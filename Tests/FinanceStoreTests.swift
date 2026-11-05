@@ -210,6 +210,34 @@ final class FinanceStoreTests: XCTestCase {
         XCTAssertEqual(store.total(for: .expense, in: .now), 0, accuracy: 0.001)
     }
 
+    func testTransferFeeIsAnExpenseWhileTransferLegsAreExcludedFromReports() {
+        let (store, defaults, suite) = makeStore()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let cash = store.wallets[0]
+        let bank = store.wallets[1]
+
+        store.transfer(amount: 250, from: cash, to: bank, fee: 15)
+
+        XCTAssertEqual(store.transactions.count, 3)
+        XCTAssertEqual(store.transactions.filter(\.isInternalTransfer).count, 2)
+        XCTAssertEqual(store.transactions.first(where: { $0.category.id == FinanceCategory.transferFee.id })?.isInternalTransfer, false)
+        XCTAssertEqual(store.total(for: .expense, in: .now), 15, accuracy: 0.001)
+        XCTAssertEqual(store.balance, -15, accuracy: 0.001)
+        XCTAssertEqual(store.balance(for: cash), -265, accuracy: 0.001)
+        XCTAssertEqual(store.balance(for: bank), 250, accuracy: 0.001)
+    }
+
+    func testBudgetAlertSettingsPersistWithBudget() {
+        let (store, defaults, suite) = makeStore()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let budget = SpendingBudget(category: .food, monthlyLimit: 1_000, alertThreshold: 0.9, alertsEnabled: false)
+
+        store.setBudget(budget)
+
+        XCTAssertEqual(FinanceStore(defaults: defaults).budgets.first?.alertThreshold ?? 0, 0.9, accuracy: 0.001)
+        XCTAssertEqual(FinanceStore(defaults: defaults).budgets.first?.alertsEnabled, false)
+    }
+
     func testBudgetPeriodRangeSupportsQuarterlyCycle() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

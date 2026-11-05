@@ -181,6 +181,8 @@ struct BudgetEditorView: View {
     @State private var selectedCategoryIDs: Set<String>
     @State private var limitText: String
     @State private var period: BudgetPeriod
+    @State private var alertsEnabled: Bool
+    @State private var alertThreshold: Double
     @State private var showingValidationError = false
 
     init(store: FinanceStore, budget: SpendingBudget? = nil) {
@@ -190,6 +192,8 @@ struct BudgetEditorView: View {
         _selectedCategoryIDs = State(initialValue: Set(budget?.categoryIDs ?? [budget?.category.id ?? FinanceCategory.food.id]))
         _limitText = State(initialValue: budget.map { $0.monthlyLimit == 0 ? "" : AmountInput.format($0.monthlyLimit) } ?? "")
         _period = State(initialValue: budget?.period ?? .monthly)
+        _alertsEnabled = State(initialValue: budget?.alertsEnabled ?? true)
+        _alertThreshold = State(initialValue: budget?.alertThreshold ?? 0.8)
     }
 
     var body: some View {
@@ -219,6 +223,19 @@ struct BudgetEditorView: View {
                         Text(store.preferences.currencyCode).foregroundStyle(FinanceStyle.muted)
                     }
                 }
+                Section("Cảnh báo ngân sách") {
+                    Toggle("Bật thông báo cho ngân sách này", isOn: $alertsEnabled)
+                        .tint(FinanceStyle.purple)
+                    if alertsEnabled {
+                        Picker("Cảnh báo sắp chạm", selection: $alertThreshold) {
+                            Text("70%").tag(0.7)
+                            Text("80%").tag(0.8)
+                            Text("90%").tag(0.9)
+                        }
+                        Text("Bạn luôn nhận thêm cảnh báo khi đạt 100% và khi vượt ngân sách.")
+                            .font(.footnote).foregroundStyle(FinanceStyle.muted)
+                    }
+                }
                 Section {
                     Text("Bạn sẽ thấy thanh tiến độ cập nhật theo các giao dịch thuộc danh mục này.")
                         .font(.system(size: 13)).foregroundStyle(FinanceStyle.muted)
@@ -229,6 +246,10 @@ struct BudgetEditorView: View {
             .background(FinanceStyle.background)
             .navigationTitle(budget == nil ? "Ngân sách mới" : "Sửa ngân sách")
             .navigationBarTitleDisplayMode(.inline)
+            .onChange(of: alertsEnabled) { enabled in
+                guard enabled else { return }
+                Task { _ = await BudgetAlertNotification.configure(enabled: true) }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Hủy") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Lưu") { save() }.fontWeight(.bold) }
@@ -250,7 +271,7 @@ struct BudgetEditorView: View {
             return
         }
         if let selected = store.categories.first(where: { selectedCategoryIDs.contains($0.id) }) { category = selected }
-        store.setBudget(SpendingBudget(id: budget?.id ?? UUID(), category: category, monthlyLimit: limit, categoryIDs: Array(selectedCategoryIDs), period: period))
+        store.setBudget(SpendingBudget(id: budget?.id ?? UUID(), category: category, monthlyLimit: limit, categoryIDs: Array(selectedCategoryIDs), period: period, alertThreshold: alertThreshold, alertsEnabled: alertsEnabled))
         dismiss()
     }
 

@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import CloudKit
 #if canImport(WidgetKit)
 import WidgetKit
 #endif
@@ -13,7 +14,7 @@ final class FinanceStore: ObservableObject {
     @Published private(set) var wallets: [FinanceWallet]
     @Published private(set) var recurringRules: [RecurringRule]
     @Published private(set) var iCloudSyncEnabled: Bool
-    @Published private(set) var iCloudStatus = "Chưa bật"
+    @Published private(set) var iCloudStatus = "Chưa đăng nhập iCloud"
     @Published private(set) var lastICloudSyncDate: Date?
 
     private let defaults: UserDefaults
@@ -34,7 +35,11 @@ final class FinanceStore: ObservableObject {
         self.transactions = loadedTransactions
         self.budgets = Self.decode([SpendingBudget].self, from: defaults, key: "finance.budgets.v1") ?? []
         self.preferences = Self.decode(FinancePreferences.self, from: defaults, key: "finance.preferences.v1") ?? FinancePreferences()
-        self.categories = Self.decode([FinanceCategory].self, from: defaults, key: "finance.categories.v1") ?? FinanceCategory.defaults
+        var loadedCategories = Self.decode([FinanceCategory].self, from: defaults, key: "finance.categories.v1") ?? FinanceCategory.defaults
+        for category in FinanceCategory.defaults where !loadedCategories.contains(where: { $0.id == category.id }) {
+            loadedCategories.append(category)
+        }
+        self.categories = loadedCategories
         var loadedWallets = Self.decode([FinanceWallet].self, from: defaults, key: "finance.wallets.v1") ?? [FinanceWallet(name: "Tiền mặt"), FinanceWallet(name: "Tài khoản ngân hàng", kind: "Tài khoản ngân hàng")]
         for legacyName in Set(loadedTransactions.map(\.account)) where !loadedWallets.contains(where: { $0.name == legacyName }) {
             loadedWallets.append(FinanceWallet(name: legacyName, kind: "Nguồn tiền khác"))
@@ -48,6 +53,7 @@ final class FinanceStore: ObservableObject {
             defaults.set(Date.now, forKey: dataUpdatedKey)
         }
         syncWidgetSnapshot()
+        Task { await refreshICloudStatus() }
     }
 
     var balance: Double {
@@ -62,7 +68,7 @@ final class FinanceStore: ObservableObject {
     }
 
     var mostRecentlyUsedWallet: FinanceWallet {
-        let recent = transactions.filter { $0.transferID == nil }.max { $0.date < $1.date }
+        let recent = transactions.filter { !$0.isInternalTransfer }.max { $0.date < $1.date }
         if let recent {
             if let id = recent.walletID, let wallet = wallets.first(where: { $0.id == id }) { return wallet }
             if let wallet = wallets.first(where: { $0.name == recent.account }) { return wallet }
@@ -79,12 +85,12 @@ final class FinanceStore: ObservableObject {
     }
 
     func total(for type: TransactionType, from start: Date, through end: Date) -> Double {
-        transactions(from: start, through: end).filter { $0.type == type && $0.transferID == nil && $0.includeInReports }.reduce(0) { $0 + $1.amount }
+        transactions(from: start, through: end).filter { $0.type == type && !$0.isInternalTransfer && $0.includeInReports }.reduce(0) { $0 + $1.amount }
     }
 
     func total(for type: TransactionType, in month: Date, calendar: Calendar = .current) -> Double {
         transactions(in: month, calendar: calendar)
-            .filter { $0.type == type && $0.transferID == nil && $0.includeInReports }
+            .filter { $0.type == type && !$0.isInternalTransfer && $0.includeInReports }
             .reduce(0) { $0 + $1.amount }
     }
 
@@ -101,19 +107,19 @@ final class FinanceStore: ObservableObject {
     func reportSpent(for category: FinanceCategory, from start: Date, through end: Date) -> Double {
         let categoryIDs = Set([category.id] + categories.filter { $0.parentID == category.id }.map(\.id))
         return transactions(from: start, through: end)
-            .filter { $0.type == .expense && $0.transferID == nil && $0.includeInReports && categoryIDs.contains($0.category.id) }
+            .filter { $0.type == .expense && !$0.isInternalTransfer && $0.includeInReports && categoryIDs.contains($0.category.id) }
             .reduce(0) { $0 + $1.amount }
     }
 
     private func spent(categoryIDs: Set<String>, from start: Date, through end: Date) -> Double {
         transactions(from: start, through: end)
-            .filter { $0.type == .expense && $0.transferID == nil && categoryIDs.contains($0.category.id) }
+            .filter { $0.type == .expense && !$0.isInternalTransfer && categoryIDs.contains($0.category.id) }
             .reduce(0) { $0 + $1.amount }
     }
 
     func spent(for budget: SpendingBudget, from start: Date, through end: Date) -> Double {
         let ids = Set(budget.categoryIDs + categories.filter { budget.categoryIDs.contains($0.parentID ?? "") }.map(\.id))
-        return transactions(from: start, through: end).filter { $0.type == .expense && $0.transferID == nil && ids.contains($0.category.id) }.reduce(0) { $0 + $1.amount }
+        return transactions(from: start, through: end).filter { $0.type == .expense && !$0.isInternalTransfer && ids.contains($0.category.id) }.reduce(0) { $0 + $1.amount }
     }
 
     func setRecurringRule(_ rule: RecurringRule) {
@@ -195,18 +201,23 @@ final class FinanceStore: ObservableObject {
 
     func deleteTransaction(id: UUID) {
         guard let transaction = transactions.first(where: { $0.id == id }) else { return }
-        transactions.removeAll { $0.id == id || (transaction.transferID != nil && $0.transferID == transaction.transferID) }
+        transactions.removeAll { $0.id == id || (transaction.isInternalTransfer && transaction.transferID != nil && $0.transferID == transaction.transferID) }
         persist(transactions, key: transactionsKey)
     }
 
-    func transfer(amount: Double, from source: FinanceWallet, to destination: FinanceWallet, date: Date = .now, note: String = "") {
+    func transfer(amount: Double, from source: FinanceWallet, to destination: FinanceWallet, fee: Double = 0, date: Date = .now, note: String = "") {
         guard amount > 0, source.id != destination.id else { return }
         let transferID = UUID()
         let title = "Chuyển khoản nội bộ"
         let suffix = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        transactions.append(FinanceTransaction(title: title, amount: amount, date: date, type: .expense, category: .other, account: source.name, walletID: source.id, transferID: transferID, note: suffix))
-        transactions.append(FinanceTransaction(title: title, amount: amount, date: date, type: .income, category: .incomeOther, account: destination.name, walletID: destination.id, transferID: transferID, note: suffix))
+        transactions.append(FinanceTransaction(title: title, amount: amount, date: date, type: .expense, category: .other, account: source.name, walletID: source.id, transferID: transferID, isInternalTransfer: true, note: suffix, includeInReports: false))
+        transactions.append(FinanceTransaction(title: title, amount: amount, date: date, type: .income, category: .incomeOther, account: destination.name, walletID: destination.id, transferID: transferID, isInternalTransfer: true, note: suffix, includeInReports: false))
+        if fee > 0 {
+            let feeCategory = categories.first(where: { $0.id == FinanceCategory.transferFee.id }) ?? .transferFee
+            transactions.append(FinanceTransaction(title: "Phí chuyển khoản", amount: fee, date: date, type: .expense, category: feeCategory, account: source.name, walletID: source.id, transferID: transferID, isInternalTransfer: false, note: suffix))
+        }
         persist(transactions, key: transactionsKey)
+        evaluateBudgetAlerts()
     }
 
     func setBudget(_ budget: SpendingBudget) {
@@ -232,37 +243,63 @@ final class FinanceStore: ObservableObject {
         if enabled {
             Task { await syncWithICloud() }
         } else {
-            iCloudStatus = "Đã tắt"
+            iCloudStatus = "Đã cập nhật"
         }
     }
 
     func syncWithICloud() async {
         guard iCloudSyncEnabled else { return }
-        iCloudStatus = "Đang đồng bộ…"
-        guard let url = iCloudBackupURL() else {
-            iCloudStatus = "iCloud Drive chưa sẵn sàng"
-            return
-        }
+        await refreshICloudStatus()
+        guard iCloudStatus != "Chưa đăng nhập iCloud" else { return }
+        iCloudStatus = "Đang đồng bộ"
         do {
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             let local = try backupData()
             let localBackup = try JSONDecoder().decode(FinanceBackup.self, from: local)
-            if FileManager.default.fileExists(atPath: url.path) {
-                let remoteData = try Data(contentsOf: url)
+            let database = CKContainer(identifier: "iCloud.vn.liquidfinance.app").privateCloudDatabase
+            let recordID = CKRecord.ID(recordName: "liquidglass-finance-backup-v1")
+            let remoteRecord = try? await database.record(for: recordID)
+            if let remoteData = remoteRecord?["backup"] as? Data {
                 let remoteBackup = try JSONDecoder().decode(FinanceBackup.self, from: remoteData)
                 if remoteBackup.exportedAt > localBackup.exportedAt {
                     try restoreBackup(remoteData, scheduleSync: false)
                 } else if localBackup.exportedAt > remoteBackup.exportedAt {
-                    try local.write(to: url, options: .atomic)
+                    try await saveCloudBackup(local, to: remoteRecord ?? CKRecord(recordType: "FinanceBackup", recordID: recordID), database: database)
                 }
             } else {
-                try local.write(to: url, options: .atomic)
+                try await saveCloudBackup(local, to: CKRecord(recordType: "FinanceBackup", recordID: recordID), database: database)
             }
             lastICloudSyncDate = .now
             defaults.set(lastICloudSyncDate, forKey: iCloudSyncDateKey)
-            iCloudStatus = "Đã đồng bộ"
+            iCloudStatus = "Đã cập nhật"
         } catch {
-            iCloudStatus = "Không thể đồng bộ"
+            iCloudStatus = "Lỗi mạng"
+        }
+    }
+
+    private func saveCloudBackup(_ data: Data, to record: CKRecord, database: CKDatabase) async throws {
+        record["backup"] = data as NSData
+        record["updatedAt"] = Date.now as NSDate
+        _ = try await database.save(record)
+    }
+
+    /// Checks the Apple ID state separately from transfer work so Settings can show a useful status.
+    func refreshICloudStatus() async {
+        do {
+            let status = try await CKContainer(identifier: "iCloud.vn.liquidfinance.app").accountStatus()
+            switch status {
+            case .available:
+                if !iCloudSyncEnabled || iCloudStatus == "Chưa đăng nhập iCloud" || iCloudStatus == "Lỗi mạng" {
+                    iCloudStatus = "Đã cập nhật"
+                }
+            case .noAccount, .restricted:
+                iCloudStatus = "Chưa đăng nhập iCloud"
+            case .couldNotDetermine:
+                iCloudStatus = "Lỗi mạng"
+            @unknown default:
+                iCloudStatus = "Lỗi mạng"
+            }
+        } catch {
+            iCloudStatus = "Lỗi mạng"
         }
     }
 
@@ -323,35 +360,29 @@ final class FinanceStore: ObservableObject {
         Task { await syncWithICloud() }
     }
 
-    private func iCloudBackupURL() -> URL? {
-        FileManager.default.url(forUbiquityContainerIdentifier: "iCloud.vn.liquidfinance.app")?
-            .appendingPathComponent("Documents", isDirectory: true)
-            .appendingPathComponent("LiquidFinance", isDirectory: true)
-            .appendingPathComponent("finance-backup.json", isDirectory: false)
-    }
-
     private func evaluateBudgetAlerts() {
         guard preferences.budgetAlertsEnabled else { return }
-        for budget in budgets where budget.monthlyLimit > 0 {
+        for budget in budgets where budget.monthlyLimit > 0 && budget.alertsEnabled {
             let range = budget.period.range(containing: .now)
             let amount = spent(for: budget, from: range.0, through: range.1)
             let ratio = amount / budget.monthlyLimit
-            let level: (key: String, title: String, body: String)?
-            if ratio > 1 {
-                level = ("over", "Đã vượt ngân sách", "Bạn đã chi \(MoneyText.string(amount, currencyCode: preferences.currencyCode)), vượt \(MoneyText.string(amount - budget.monthlyLimit, currencyCode: preferences.currencyCode)).")
-            } else if ratio >= 1 {
-                level = ("reached", "Đã đạt giới hạn ngân sách", "Bạn đã dùng hết \(MoneyText.string(budget.monthlyLimit, currencyCode: preferences.currencyCode)) cho \(budget.category.name).")
-            } else if ratio >= 0.8 {
-                level = ("warning", "Sắp hết ngân sách", "Bạn đã dùng \(Int(ratio * 100))% ngân sách \(budget.category.name).")
-            } else {
-                level = nil
+            var levels: [(key: String, title: String, body: String)] = []
+            if ratio >= budget.alertThreshold {
+                levels.append(("warning", "Sắp hết ngân sách", "Bạn đã dùng \(Int(ratio * 100))% ngân sách \(budget.category.name)."))
             }
-            guard let level else { continue }
+            if ratio >= 1 {
+                levels.append(("reached", "Đã đạt giới hạn ngân sách", "Bạn đã dùng hết \(MoneyText.string(budget.monthlyLimit, currencyCode: preferences.currencyCode)) cho \(budget.category.name)."))
+            }
+            if ratio > 1 {
+                levels.append(("over", "Đã vượt ngân sách", "Bạn đã chi \(MoneyText.string(amount, currencyCode: preferences.currencyCode)), vượt \(MoneyText.string(amount - budget.monthlyLimit, currencyCode: preferences.currencyCode))."))
+            }
             let period = Int(range.0.timeIntervalSince1970)
-            let stateKey = "finance.budget.alert.\(budget.id.uuidString).\(period)"
-            guard defaults.string(forKey: stateKey) != level.key else { continue }
-            defaults.set(level.key, forKey: stateKey)
-            Task { await BudgetAlertNotification.send(identifier: stateKey, title: level.title, body: level.body) }
+            for level in levels {
+                let stateKey = "finance.budget.alert.\(budget.id.uuidString).\(period).\(level.key)"
+                guard !defaults.bool(forKey: stateKey) else { continue }
+                defaults.set(true, forKey: stateKey)
+                Task { await BudgetAlertNotification.send(identifier: stateKey, title: level.title, body: level.body) }
+            }
         }
     }
 

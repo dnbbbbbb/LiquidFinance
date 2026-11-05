@@ -171,7 +171,6 @@ struct WalletManagementView: View {
     @ObservedObject var store: FinanceStore
     @Environment(\.dismiss) private var dismiss
     @State private var sheet: WalletSheet?
-    @State private var showingTransfer = false
 
     private enum WalletSheet: Identifiable {
         case add
@@ -207,11 +206,7 @@ struct WalletManagementView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Đóng") { dismiss() } }
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button { showingTransfer = true } label: { Image(systemName: "arrow.left.arrow.right") }
-                        .accessibilityLabel("Chuyển khoản nội bộ")
-                    Button { sheet = .add } label: { Image(systemName: "plus") }
-                }
+                ToolbarItem(placement: .primaryAction) { Button { sheet = .add } label: { Image(systemName: "plus") } }
             }
             .sheet(item: $sheet) { sheet in
                 switch sheet {
@@ -219,75 +214,7 @@ struct WalletManagementView: View {
                 case .edit(let wallet): WalletEditorView(store: store, wallet: wallet)
                 }
             }
-            .sheet(isPresented: $showingTransfer) {
-                InternalTransferEditor(store: store)
-            }
         }
-    }
-}
-
-struct InternalTransferEditor: View {
-    @ObservedObject var store: FinanceStore
-    @Environment(\.dismiss) private var dismiss
-    @State private var sourceID: UUID
-    @State private var destinationID: UUID
-    @State private var amount = ""
-    @State private var date = Date.now
-    @State private var note = ""
-    @State private var invalid = false
-
-    init(store: FinanceStore) {
-        self.store = store
-        let source = store.mostRecentlyUsedWallet.id
-        let destination = store.wallets.first(where: { $0.id != source })?.id ?? source
-        _sourceID = State(initialValue: source)
-        _destinationID = State(initialValue: destination)
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Chuyển giữa các ví") {
-                    Picker("Từ", selection: $sourceID) {
-                        ForEach(store.wallets) { Text($0.name).tag($0.id) }
-                    }
-                    Picker("Đến", selection: $destinationID) {
-                        ForEach(store.wallets) { Text($0.name).tag($0.id) }
-                    }
-                }
-                Section("Số tiền") {
-                    HStack {
-                        AmountTextField(text: $amount, placeholder: "0", fontSize: 22).frame(height: 34)
-                        Text(store.preferences.currencyCode).foregroundStyle(FinanceStyle.muted)
-                    }
-                    DatePicker("Ngày và giờ", selection: $date, displayedComponents: [.date, .hourAndMinute])
-                }
-                Section("Ghi chú") { TextField("Không bắt buộc", text: $note) }
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Chuyển khoản nội bộ")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Hủy") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Chuyển") { save() }.fontWeight(.bold) }
-            }
-            .alert("Chưa thể chuyển khoản", isPresented: $invalid) {
-                Button("Đã hiểu", role: .cancel) { }
-            } message: {
-                Text("Chọn hai ví khác nhau và nhập số tiền lớn hơn 0.")
-            }
-        }
-        .background(KeyboardDismissOnTap())
-    }
-
-    private func save() {
-        guard let source = store.wallets.first(where: { $0.id == sourceID }),
-              let destination = store.wallets.first(where: { $0.id == destinationID }),
-              let value = AmountInput.parse(amount), value > 0, source.id != destination.id else {
-            invalid = true
-            return
-        }
-        store.transfer(amount: value, from: source, to: destination, date: date, note: note)
-        dismiss()
     }
 }
 

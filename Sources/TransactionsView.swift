@@ -7,6 +7,20 @@ private enum TransactionFilter: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum TransactionEntryMode: String, CaseIterable, Identifiable {
+    case expense, income, transfer
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .expense: return "Chi tiêu"
+        case .income: return "Thu nhập"
+        case .transfer: return "Chuyển khoản"
+        }
+    }
+    var transactionType: TransactionType { self == .income ? .income : .expense }
+}
+
 struct TransactionsView: View {
     @ObservedObject var store: FinanceStore
     @State private var searchText = ""
@@ -139,12 +153,15 @@ struct TransactionEditorView: View {
     @Environment(\.dismiss) private var dismiss
     let transaction: FinanceTransaction?
 
+    @State private var mode: TransactionEntryMode
     @State private var type: TransactionType
     @State private var title: String
     @State private var amountText: String
     @State private var date: Date
     @State private var category: FinanceCategory
     @State private var walletID: UUID
+    @State private var destinationWalletID: UUID
+    @State private var transferFeeText: String
     @State private var note: String
     @State private var includeInReports: Bool
     @State private var usesCategoryAsTitle: Bool
@@ -154,16 +171,36 @@ struct TransactionEditorView: View {
     @State private var showingValidationError = false
     @State private var showingCategoryPicker = false
 
-    init(store: FinanceStore, transaction: FinanceTransaction? = nil) {
+    init(store: FinanceStore, transaction: FinanceTransaction? = nil, initialMode: TransactionEntryMode = .expense) {
         self.store = store
         self.transaction = transaction
-        _type = State(initialValue: transaction?.type ?? .expense)
+        let entryMode: TransactionEntryMode
+        if transaction?.isInternalTransfer == true { entryMode = .transfer }
+        else if let transaction { entryMode = transaction.type == .income ? .income : .expense }
+        else { entryMode = initialMode }
+        _mode = State(initialValue: entryMode)
+        _type = State(initialValue: entryMode.transactionType)
         _title = State(initialValue: transaction?.title ?? "")
         _amountText = State(initialValue: transaction.map { $0.amount == 0 ? "" : AmountInput.format($0.amount) } ?? "")
         _date = State(initialValue: transaction?.date ?? .now)
         _category = State(initialValue: transaction?.category ?? .food)
-        let existingWallet = store.wallets.first(where: { $0.id == transaction?.walletID }) ?? store.wallets.first(where: { $0.name == transaction?.account })
-        _walletID = State(initialValue: existingWallet?.id ?? store.mostRecentlyUsedWallet.id)
+        let transferSource = transaction.flatMap { item in
+            guard item.isInternalTransfer, let transferID = item.transferID else { return nil }
+            return store.transactions.first { $0.transferID == transferID && $0.isInternalTransfer && $0.type == .expense }
+        }
+        let transferDestination = transaction.flatMap { item in
+            guard item.isInternalTransfer, let transferID = item.transferID else { return nil }
+            return store.transactions.first { $0.transferID == transferID && $0.isInternalTransfer && $0.type == .income }
+        }
+        let existingWallet = store.wallets.first(where: { $0.id == (transferSource?.walletID ?? transaction?.walletID) }) ?? store.wallets.first(where: { $0.name == (transferSource?.account ?? transaction?.account) })
+        let selectedWalletID = existingWallet?.id ?? store.mostRecentlyUsedWallet.id
+        _walletID = State(initialValue: selectedWalletID)
+        _destinationWalletID = State(initialValue: transferDestination?.walletID ?? store.wallets.first(where: { $0.id != selectedWalletID })?.id ?? selectedWalletID)
+        let transferFee = transaction.flatMap { item -> FinanceTransaction? in
+            guard let transferID = item.transferID else { return nil }
+            return store.transactions.first { $0.transferID == transferID && !$0.isInternalTransfer && $0.category.id == FinanceCategory.transferFee.id }
+        }
+        _transferFeeText = State(initialValue: transferFee.map { AmountInput.format($0.amount) } ?? "")
         _note = State(initialValue: transaction?.note ?? "")
         _includeInReports = State(initialValue: transaction?.includeInReports ?? true)
         _usesCategoryAsTitle = State(initialValue: transaction.map { $0.title == $0.category.name } ?? true)
@@ -185,8 +222,8 @@ struct TransactionEditorView: View {
         NavigationStack {
             Form {
                 Section("Loại giao dịch") {
-                    Picker("Loại", selection: $type) {
-                        ForEach(TransactionType.allCases) { option in
+                    Picker("Loại", selection: $mode) {
+                        ForEach(TransactionEntryMode.allCases) { option in
                             Text(option.title).tag(option)
                         }
                     }
@@ -204,17 +241,38 @@ struct TransactionEditorView: View {
                     }
                 }
 
-                Section("Thông tin") {
-                    TextField(type == .expense ? "Ví dụ: Cà phê sáng" : "Ví dụ: Lương tháng này", text: $title)
-                        .textInputAutocapitalization(.sentences)
-                        .accessibilityLabel("Tên giao dịch")
+                Section(mode == .transfer ? "Chuyển giữa các ví" : "Thông tin") {
+                    if mode == .transfer {
+                        Picker("Ví nguồn", selection: $walletID) {
+                            ForEach(store.wallets) { wallet in Text(wallet.name).tag(wallet.id) }
+                        }
+                        Picker("Ví đích", selection: $destinationWalletID) {
+                            ForEach(store.wallets.filter { $0.id != walletID }) { wallet in Text(wallet.name).tag(wallet.id) }
+                        }
+                    } else {
+                        TextField(type == .expense ? "Ví dụ: Cà phê sáng" : "Ví dụ: Lương tháng này", text: $title)
+                            .textInputAutocapitalization(.sentences)
+                            .accessibilityLabel("Tên giao dịch")
+                    }
                     DatePicker("Ngày", selection: $date, displayedComponents: .date)
                     DatePicker("Thời gian", selection: $date, displayedComponents: .hourAndMinute)
-                    Picker("Ví", selection: $walletID) {
-                        ForEach(store.wallets) { wallet in Text(wallet.name).tag(wallet.id) }
+                    if mode != .transfer {
+                        Picker("Ví", selection: $walletID) {
+                            ForEach(store.wallets) { wallet in Text($0.name).tag($0.id) }
+                        }
                     }
                 }
 
+                if mode == .transfer {
+                    Section("Phí giao dịch (không bắt buộc)") {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            AmountTextField(text: $transferFeeText, placeholder: "0", fontSize: 20).frame(height: 34)
+                            Text(store.preferences.currencyCode).foregroundStyle(FinanceStyle.muted)
+                        }
+                        Text("Phí được ghi là khoản chi riêng và được tính vào báo cáo, còn số tiền chuyển chỉ luân chuyển giữa hai ví.")
+                            .font(.footnote).foregroundStyle(FinanceStyle.muted)
+                    }
+                } else {
                 Section("Danh mục") {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 10) {
                         ForEach(favouriteCategories) { item in
@@ -253,12 +311,14 @@ struct TransactionEditorView: View {
                         .buttonStyle(.plain)
                     }
                 }
+                }
 
                 Section("Ghi chú") {
                     TextField("Thêm thông tin (không bắt buộc)", text: $note, axis: .vertical)
                         .lineLimit(2...4)
                 }
 
+                if mode != .transfer {
                 Section("Báo cáo") {
                     Toggle("Tính giao dịch này vào báo cáo", isOn: $includeInReports)
                     Text("Tắt để loại khoản này khỏi tổng thu chi và biểu đồ. Số dư ví vẫn được cập nhật.")
@@ -279,6 +339,7 @@ struct TransactionEditorView: View {
                             }
                         }
                     }
+                }
                 }
             }
             .scrollContentBackground(.hidden)
@@ -307,6 +368,18 @@ struct TransactionEditorView: View {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
                     Button("Xong") { Keyboard.dismiss() }
+                }
+            }
+            .onChange(of: mode) { newMode in
+                type = newMode.transactionType
+                if newMode == .transfer { isRecurring = false }
+                if newMode != .transfer, !categoriesFor(newMode.transactionType).contains(category) {
+                    selectCategory(categoriesFor(newMode.transactionType).first ?? .other)
+                }
+            }
+            .onChange(of: walletID) { source in
+                if destinationWalletID == source {
+                    destinationWalletID = store.wallets.first(where: { $0.id != source })?.id ?? source
                 }
             }
             .onChange(of: type) { newType in
@@ -358,7 +431,24 @@ struct TransactionEditorView: View {
             showingValidationError = true
             return
         }
-        var saved = transaction ?? FinanceTransaction(title: title, amount: amount, type: type, category: category)
+        if mode == .transfer {
+            guard let source = store.wallets.first(where: { $0.id == walletID }),
+                  let destination = store.wallets.first(where: { $0.id == destinationWalletID }),
+                  source.id != destination.id else {
+                showingValidationError = true
+                return
+            }
+            let fee = AmountInput.parse(transferFeeText) ?? 0
+            guard fee >= 0 else { showingValidationError = true; return }
+            if let transaction { store.deleteTransaction(id: transaction.id) }
+            store.transfer(amount: amount, from: source, to: destination, fee: fee, date: date, note: note)
+            dismiss()
+            return
+        }
+        if let transaction, transaction.isInternalTransfer {
+            store.deleteTransaction(id: transaction.id)
+        }
+        var saved = transaction?.isInternalTransfer == true ? FinanceTransaction(title: title, amount: amount, type: type, category: category) : (transaction ?? FinanceTransaction(title: title, amount: amount, type: type, category: category))
         let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         saved.title = cleanTitle.isEmpty ? category.name : cleanTitle
         saved.amount = amount

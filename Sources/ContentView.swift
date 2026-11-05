@@ -13,8 +13,6 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: FinanceTab = .home
     @State private var showingNewTransaction = false
-    @State private var showingAddActions = false
-    @State private var showingTransfer = false
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -49,7 +47,7 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Button {
-                showingAddActions = true
+                showingNewTransaction = true
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 22, weight: .bold))
@@ -69,16 +67,6 @@ struct ContentView: View {
         .background(FinanceStyle.background.ignoresSafeArea())
         .sheet(isPresented: $showingNewTransaction) {
             TransactionEditorView(store: store)
-        }
-        .sheet(isPresented: $showingTransfer) {
-            InternalTransferEditor(store: store)
-        }
-        .confirmationDialog("Thêm mới", isPresented: $showingAddActions, titleVisibility: .visible) {
-            Button("Giao dịch thu / chi", systemImage: "plus.circle") { showingNewTransaction = true }
-            Button("Chuyển khoản nội bộ", systemImage: "arrow.left.arrow.right") { showingTransfer = true }
-            Button("Hủy", role: .cancel) { }
-        } message: {
-            Text("Chọn loại mục bạn muốn thêm.")
         }
         .onAppear {
             store.processDueRecurringTransactions()
