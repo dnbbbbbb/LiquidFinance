@@ -148,16 +148,16 @@ struct ReportsView: View {
                 Chart(chartSeries) { item in
                     BarMark(
                         x: .value("Tháng", item.label),
-                        y: .value("Số tiền", item.income),
-                        position: .dodge
+                        y: .value("Số tiền", item.income)
                     )
+                    .position(by: .value("Loại", "Thu nhập"))
                     .foregroundStyle(by: .value("Loại", "Thu nhập"))
                     .cornerRadius(5)
                     BarMark(
                         x: .value("Tháng", item.label),
-                        y: .value("Số tiền", item.expense),
-                        position: .dodge
+                        y: .value("Số tiền", item.expense)
                     )
+                    .position(by: .value("Loại", "Chi tiêu"))
                     .foregroundStyle(by: .value("Loại", "Chi tiêu"))
                     .cornerRadius(6)
                 }
