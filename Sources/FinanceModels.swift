@@ -127,7 +127,7 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
         walletID = try values.decodeIfPresent(UUID.self, forKey: .walletID)
         recurrenceID = try values.decodeIfPresent(UUID.self, forKey: .recurrenceID)
         transferID = try values.decodeIfPresent(UUID.self, forKey: .transferID)
-        isInternalTransfer = try values.decodeIfPresent(Bool.self, forKey: .isInternalTransfer) ?? (transferID != nil)
+        isInternalTransfer = try values.decodeIfPresent(Bool.self, forKey: .isInternalTransfer) ?? transferID != nil
         note = try values.decodeIfPresent(String.self, forKey: .note) ?? ""
         includeInReports = try values.decodeIfPresent(Bool.self, forKey: .includeInReports) ?? true
     }
