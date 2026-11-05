@@ -95,7 +95,7 @@ private struct CategoryEditorView: View {
                 }
                 Section("Biểu tượng") {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 12) {
-                        ForEach(Self.symbols, id: \.self) { item in
+                        ForEach(Self.symbols + Self.moreSymbols, id: \.self) { item in
                             Button { symbol = item } label: {
                                 Image(systemName: item)
                                     .font(.system(size: 18, weight: .semibold))
@@ -163,7 +163,8 @@ private struct CategoryEditorView: View {
     }
 
     private static let symbols = ["circle.grid.2x2.fill", "fork.knife", "cart.fill", "car.fill", "house.fill", "bolt.fill", "heart.fill", "cross.case.fill", "book.closed.fill", "gamecontroller.fill", "gift.fill", "briefcase.fill", "bag.fill", "phone.fill", "airplane", "pawprint.fill", "music.note", "creditcard.fill", "banknote.fill", "ellipsis.circle.fill", "cup.and.saucer.fill", "takeoutbag.and.cup.and.straw.fill", "tram.fill", "bicycle", "bus.fill", "fuelpump.fill", "wifi", "lightbulb.fill", "drop.fill", "leaf.fill", "dumbbell.fill", "figure.run", "stethoscope", "graduationcap.fill", "laptopcomputer", "wrench.and.screwdriver.fill", "building.2.fill", "bed.double.fill", "dog.fill", "cat.fill", "ticket.fill", " 영화.fill", "camera.fill", "shippingbox.fill", "arrow.left.arrow.right.circle.fill", "chart.line.uptrend.xyaxis", "dollarsign.circle.fill", "eurosign.circle.fill", "sterlingsign.circle.fill", "wallet.bifold.fill"]
-    private static let colors: [UInt32] = [0x665DF2, 0xF09A56, 0x5187E8, 0xBD73D7, 0xEA7284, 0x36AFA1, 0xE1A53C, 0x22A879, 0xE05D44, 0x4D6B50, 0xD64F91, 0x3E9CBE, 0xA87D32, 0x7257A8, 0x607D8B, 0xC0392B, 0x16A085, 0x2C3E50]
+    private static let moreSymbols = ["film.fill", "basket.fill", "cloud.fill", "sun.max.fill", "moon.fill", "car.rear.fill", "scooter", "pills.fill", "tv.fill", "headphones", "sportscourt.fill", "tent.fill", "tree.fill", "hammer.fill", "paintbrush.pointed.fill", "archivebox.fill", "person.fill", "person.2.fill", "party.popper.fill", "percent", "chart.pie.fill", "bitcoinsign.circle.fill", "house.and.flag.fill", "flame.fill", "snowflake", "carrot.fill", "fish.fill", "wineglass.fill", "fork.knife.circle.fill", "pencil.and.outline", "scissors", "printer.fill", "keyboard.fill", "desktopcomputer", "airpodspro", "record.circle.fill", "theatermasks.fill", "flag.fill", "medal.fill", "soccerball", "figure.walk", "bicycle.circle.fill"]
+    private static let colors: [UInt32] = [0x665DF2, 0xF09A56, 0x5187E8, 0xBD73D7, 0xEA7284, 0x36AFA1, 0xE1A53C, 0x22A879, 0xE05D44, 0x4D6B50, 0xD64F91, 0x3E9CBE, 0xA87D32, 0x7257A8, 0x607D8B, 0xC0392B, 0x16A085, 0x2C3E50, 0xEF6C00, 0x00897B, 0x5C6BC0, 0x8E24AA, 0x3949AB, 0x7CB342, 0xF4511E, 0x039BE5, 0x6D4C41, 0x546E7A, 0xD81B60, 0x00ACC1]
 }
 
 struct WalletManagementView: View {

@@ -50,8 +50,12 @@ final class FinanceStore: ObservableObject {
     }
 
     var mostRecentlyUsedWallet: FinanceWallet {
-        let recentWalletID = transactions.sorted { $0.date > $1.date }.first(where: { $0.transferID == nil })?.walletID
-        return wallets.first(where: { $0.id == recentWalletID }) ?? wallets.first ?? FinanceWallet(name: "Tiền mặt")
+        let recent = transactions.filter { $0.transferID == nil }.max { $0.date < $1.date }
+        if let recent {
+            if let id = recent.walletID, let wallet = wallets.first(where: { $0.id == id }) { return wallet }
+            if let wallet = wallets.first(where: { $0.name == recent.account }) { return wallet }
+        }
+        return wallets.first ?? FinanceWallet(name: "Tiền mặt")
     }
 
     func transactions(in month: Date, calendar: Calendar = .current) -> [FinanceTransaction] {

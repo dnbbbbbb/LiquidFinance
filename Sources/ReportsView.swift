@@ -2,10 +2,11 @@ import SwiftUI
 import Charts
 
 private struct MonthlySpend: Identifiable {
-    let id = UUID()
+    var id: String { "\(label)-\(date.timeIntervalSince1970)" }
     let date: Date
     let label: String
-    let amount: Double
+    let income: Double
+    let expense: Double
 }
 
 private enum ReportChartMode: String, CaseIterable, Identifiable {
@@ -53,7 +54,7 @@ struct ReportsView: View {
                   let nextMonth = calendar.date(byAdding: .month, value: 1, to: date) else { return nil }
             let start = timeFilterEnabled ? max(date, min(rangeStart, rangeEnd)) : date
             let end = timeFilterEnabled ? min(nextMonth.addingTimeInterval(-1), max(rangeStart, rangeEnd)) : nextMonth.addingTimeInterval(-1)
-            return MonthlySpend(date: date, label: DateText.compactMonth(date), amount: store.total(for: .expense, from: start, through: end))
+            return MonthlySpend(date: date, label: DateText.compactMonth(date), income: store.total(for: .income, from: start, through: end), expense: store.total(for: .expense, from: start, through: end))
         }
     }
 
@@ -66,8 +67,9 @@ struct ReportsView: View {
                   let next = calendar.date(byAdding: .day, value: 1, to: date) else { return nil }
             let start = max(date, effectiveStart)
             let end = min(next.addingTimeInterval(-1), effectiveEnd)
-            let amount = start <= end ? store.total(for: .expense, from: start, through: end) : 0
-            return MonthlySpend(date: date, label: String(day), amount: amount)
+            let income = start <= end ? store.total(for: .income, from: start, through: end) : 0
+            let expense = start <= end ? store.total(for: .expense, from: start, through: end) : 0
+            return MonthlySpend(date: date, label: String(day), income: income, expense: expense)
         }
     }
 
@@ -135,26 +137,35 @@ struct ReportsView: View {
 
     private var trendCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            SectionHeading(title: chartMode == .days ? "Chi tiêu theo ngày" : (timeFilterEnabled ? "Chi tiêu theo tháng" : "Chi tiêu 6 tháng"))
+            SectionHeading(title: chartMode == .days ? "Thu nhập và chi tiêu theo ngày" : (timeFilterEnabled ? "Thu nhập và chi tiêu theo tháng" : "Thu nhập và chi tiêu · 6 tháng"))
             Picker("Kiểu biểu đồ", selection: $chartMode) {
                 ForEach(ReportChartMode.allCases) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
-            if chartSeries.allSatisfy({ $0.amount == 0 }) {
-                EmptyState(symbol: "chart.bar", title: "Biểu đồ đang chờ dữ liệu", message: "Các khoản chi sẽ xuất hiện tại đây.")
+            if chartSeries.allSatisfy({ $0.income == 0 && $0.expense == 0 }) {
+                EmptyState(symbol: "chart.bar", title: "Biểu đồ đang chờ dữ liệu", message: "Các khoản thu và chi sẽ xuất hiện tại đây.")
             } else {
                 Chart(chartSeries) { item in
                     BarMark(
                         x: .value("Tháng", item.label),
-                        y: .value("Chi tiêu", item.amount)
+                        y: .value("Số tiền", item.income),
+                        position: .dodge
                     )
-                    .foregroundStyle(LinearGradient(colors: [Color(hex: 0x958EFF), FinanceStyle.purple], startPoint: .top, endPoint: .bottom))
+                    .foregroundStyle(by: .value("Loại", "Thu nhập"))
+                    .cornerRadius(5)
+                    BarMark(
+                        x: .value("Tháng", item.label),
+                        y: .value("Số tiền", item.expense),
+                        position: .dodge
+                    )
+                    .foregroundStyle(by: .value("Loại", "Chi tiêu"))
                     .cornerRadius(6)
                 }
-                .chartLegend(.hidden)
+                .chartForegroundStyleScale(["Thu nhập": FinanceStyle.green, "Chi tiêu": FinanceStyle.red])
+                .chartLegend(position: .bottom, alignment: .leading, spacing: 12)
                 .chartYAxis { AxisMarks(position: .leading) }
                 .frame(height: 190)
-                .accessibilityLabel(chartMode == .days ? "Biểu đồ chi tiêu từng ngày" : "Biểu đồ chi tiêu theo tháng")
+                .accessibilityLabel(chartMode == .days ? "Biểu đồ thu nhập và chi tiêu từng ngày" : "Biểu đồ thu nhập và chi tiêu theo tháng")
             }
         }
         .padding(18)

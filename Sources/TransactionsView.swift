@@ -229,9 +229,9 @@ struct TransactionEditorView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
-                                .background(category == item ? FinanceStyle.purple : FinanceStyle.background, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(category == item ? Color.white.opacity(0.9) : .clear, lineWidth: 2))
-                                .foregroundStyle(category == item ? .white : FinanceStyle.ink)
+                                .background(category == item ? item.tint.opacity(0.18) : FinanceStyle.background, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(category == item ? item.tint : .clear, lineWidth: 2))
+                                .foregroundStyle(FinanceStyle.ink)
                             }
                             .buttonStyle(.plain)
                         }
