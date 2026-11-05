@@ -184,11 +184,11 @@ struct TransactionEditorView: View {
         _amountText = State(initialValue: transaction.map { $0.amount == 0 ? "" : AmountInput.format($0.amount) } ?? "")
         _date = State(initialValue: transaction?.date ?? .now)
         _category = State(initialValue: transaction?.category ?? .food)
-        let transferSource = transaction.flatMap { item in
+        let transferSource = transaction.flatMap { item -> FinanceTransaction? in
             guard item.isInternalTransfer, let transferID = item.transferID else { return nil }
             return store.transactions.first { $0.transferID == transferID && $0.isInternalTransfer && $0.type == .expense }
         }
-        let transferDestination = transaction.flatMap { item in
+        let transferDestination = transaction.flatMap { item -> FinanceTransaction? in
             guard item.isInternalTransfer, let transferID = item.transferID else { return nil }
             return store.transactions.first { $0.transferID == transferID && $0.isInternalTransfer && $0.type == .income }
         }
