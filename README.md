@@ -19,6 +19,7 @@
 - App icon Liquid Finance, định dạng ngày giờ `dd/MM/yyyy · HH:mm`, và chọn tháng/năm trực tiếp trên màn hình Tổng quan, Giao dịch, Ngân sách và Báo cáo.
 - Chọn biểu tượng khi tạo danh mục; tám danh mục dùng nhiều nhất hiển thị trước trong biểu mẫu giao dịch.
 - V3.2 bổ sung chuyển khoản nội bộ, ngân sách theo tuần/tháng/quý/năm, cảnh báo mức dùng 80%, biểu đồ theo ngày hoặc tháng và widget số dư/nhập nhanh.
+- V3.4 cập nhật phiên bản phát hành, số build và launch screen co giãn theo thiết bị iPhone.
 - Widget dùng App Group `group.vn.liquidfinance`; hãy bật App Groups với định danh này cho app và widget trong Apple Developer nếu tạo IPA đã ký.
 - Lưu trữ cục bộ bằng `UserDefaults`; không cần đăng nhập hoặc kết nối mạng.
 
@@ -35,15 +36,15 @@ Chọn scheme `LiquidFinance` và một iPhone Simulator để chạy app hoặc
 
 ## GitHub Actions
 
-Workflow `.github/workflows/ios.yml` tự chọn iPhone Simulator đang có để chạy unit tests trên mỗi push và pull request. Mỗi push lên `main` hoặc `master` tạo GitHub Release theo version tăng dần `v3.2.<run>` cùng IPA có tên version đó, ví dụ `LiquidFinance-v3.2.42.ipa`. Push một tag `v*` sẽ tạo/cập nhật release và IPA mang version của tag, ví dụ `LiquidFinance-v3.2.0.ipa`.
+Workflow `.github/workflows/ios.yml` tự chọn iPhone Simulator đang có để chạy unit tests trên mỗi push và pull request. Mỗi push lên `main` hoặc `master` tạo GitHub Release theo version tăng dần `v3.4.<run>` cùng IPA có tên version đó, ví dụ `LiquidFinance-v3.4.42.ipa`. Push một tag `v*` sẽ tạo/cập nhật release và IPA mang version của tag, ví dụ `LiquidFinance-v3.4.0.ipa`.
 
 Nếu chưa thêm thông tin ký, release vẫn nhận IPA chưa ký; tệp chưa ký không cài trực tiếp lên iPhone thật. Để tạo IPA đã ký, thêm các repository secrets: `IOS_CERTIFICATE_BASE64` (tệp `.p12` dạng base64), `IOS_CERTIFICATE_PASSWORD`, `IOS_PROVISIONING_PROFILE_BASE64` (profile dạng base64), `IOS_PROFILE_NAME` (tên profile), và `IOS_TEAM_ID`. Secret tùy chọn `IOS_EXPORT_METHOD` nhận `ad-hoc` (mặc định), `development`, `enterprise` hoặc `app-store-connect`. Certificate, profile, team và bundle ID `vn.liquidfinance.app` phải khớp nhau.
 
 Có thể tạo release phiên bản riêng bằng:
 
 ```sh
-git tag v3.2.0
-git push origin v3.2.0
+git tag v3.4.0
+git push origin v3.4.0
 ```
 
 ## Kiểm thử
