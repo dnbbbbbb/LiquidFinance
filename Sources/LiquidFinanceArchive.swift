@@ -43,7 +43,7 @@ struct LiquidFinanceBackupPackage: Codable {
     let wallets: [FinanceWallet]
     let recurringRules: [RecurringRule]
 
-    init(createdAt: Date = .now, transactions: [FinanceTransaction], budgets: [SpendingBudget], preferences: FinancePreferences, categories: [FinanceCategory], wallets: [FinanceWallet], recurringRules: [RecurringRule]) {
+    init(createdAt: Date = .now, transactions: [FinanceTransaction], budgets: [SpendingBudget], preferences: FinancePreferences, categories: [FinanceCategory], wallets: [FinanceWallet], recurringRules: [RecurringRule] = []) {
         self.createdAt = createdAt
         self.transactions = transactions
         self.budgets = budgets

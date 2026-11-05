@@ -83,7 +83,7 @@ struct ContentView: View {
                 showingNewTransaction = true
             }
         }
-        .preferredColorScheme(store.preferences.appearance == "light" ? .light : (store.preferences.appearance == "dark" ? .dark : nil))
+        .preferredColorScheme(store.preferences.appearance == "dark" ? .dark : (store.preferences.appearance == "system" ? nil : .light))
     }
 }
 

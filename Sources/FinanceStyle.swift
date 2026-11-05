@@ -2,17 +2,39 @@ import SwiftUI
 import UIKit
 
 enum FinanceStyle {
-    static let background = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.07, green: 0.08, blue: 0.12, alpha: 1) : UIColor(red: 0.96, green: 0.97, blue: 0.99, alpha: 1) })
-    static let card = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.12, green: 0.13, blue: 0.18, alpha: 1) : .white })
-    static let ink = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? .white : UIColor(red: 0.12, green: 0.13, blue: 0.21, alpha: 1) })
-    static let muted = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.68, alpha: 1) : UIColor(red: 0.52, green: 0.54, blue: 0.61, alpha: 1) })
-    static let purple = Color(hex: 0x665DF2)
-    static let purpleLight = Color(hex: 0xEFEDFF)
-    static let green = Color(hex: 0x22A879)
-    static let greenLight = Color(hex: 0xE6F7F0)
-    static let red = Color(hex: 0xE66A74)
-    static let redLight = Color(hex: 0xFFF0F0)
-    static let line = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.25, alpha: 1) : UIColor(red: 0.92, green: 0.93, blue: 0.96, alpha: 1) })
+    private static let appearanceKey = "finance.active-appearance"
+
+    static func setAppearance(_ appearance: String) {
+        UserDefaults.standard.set(appearance, forKey: appearanceKey)
+    }
+
+    private static var usesPinkTheme: Bool {
+        UserDefaults.standard.string(forKey: appearanceKey) == "sanrio"
+    }
+
+    static var background: Color {
+        usesPinkTheme
+            ? Color(hex: 0xFFF4FA)
+            : Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.07, green: 0.08, blue: 0.12, alpha: 1) : UIColor(red: 0.96, green: 0.97, blue: 0.99, alpha: 1) })
+    }
+    static var card: Color {
+        usesPinkTheme ? Color(hex: 0xFFFDFE) : Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.12, green: 0.13, blue: 0.18, alpha: 1) : .white })
+    }
+    static var ink: Color {
+        usesPinkTheme ? Color(hex: 0x4D1937) : Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? .white : UIColor(red: 0.12, green: 0.13, blue: 0.21, alpha: 1) })
+    }
+    static var muted: Color {
+        usesPinkTheme ? Color(hex: 0x9A6683) : Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.68, alpha: 1) : UIColor(red: 0.52, green: 0.54, blue: 0.61, alpha: 1) })
+    }
+    static var purple: Color { usesPinkTheme ? Color(hex: 0xE85D9A) : Color(hex: 0x665DF2) }
+    static var purpleLight: Color { usesPinkTheme ? Color(hex: 0xFFE1F0) : Color(hex: 0xEFEDFF) }
+    static var green: Color { usesPinkTheme ? Color(hex: 0x45A983) : Color(hex: 0x22A879) }
+    static var greenLight: Color { usesPinkTheme ? Color(hex: 0xE2F7ED) : Color(hex: 0xE6F7F0) }
+    static var red: Color { usesPinkTheme ? Color(hex: 0xD85C7E) : Color(hex: 0xE66A74) }
+    static var redLight: Color { usesPinkTheme ? Color(hex: 0xFFE9EF) : Color(hex: 0xFFF0F0) }
+    static var line: Color {
+        usesPinkTheme ? Color(hex: 0xF3CEE0) : Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.25, alpha: 1) : UIColor(red: 0.92, green: 0.93, blue: 0.96, alpha: 1) })
+    }
 }
 
 extension Color {

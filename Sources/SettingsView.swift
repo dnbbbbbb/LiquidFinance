@@ -185,6 +185,7 @@ struct SettingsView: View {
                     Text("Tự động").tag("system")
                     Text("Sáng").tag("light")
                     Text("Tối").tag("dark")
+                    Text("Hồng dễ thương").tag("sanrio")
                 }
                 .labelsHidden().tint(FinanceStyle.purple).fixedSize()
             }

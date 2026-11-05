@@ -40,6 +40,7 @@ final class FinanceStore: ObservableObject {
         }
         self.wallets = loadedWallets
         self.recurringRules = Self.decode([RecurringRule].self, from: defaults, key: "finance.recurring.v1") ?? []
+        FinanceStyle.setAppearance(self.preferences.appearance)
         if defaults.object(forKey: dataUpdatedKey) == nil,
            !loadedTransactions.isEmpty || !self.budgets.isEmpty || !self.recurringRules.isEmpty {
             defaults.set(Date.now, forKey: dataUpdatedKey)
@@ -225,6 +226,7 @@ final class FinanceStore: ObservableObject {
 
     func updatePreferences(_ update: (inout FinancePreferences) -> Void) {
         update(&preferences)
+        FinanceStyle.setAppearance(preferences.appearance)
         persist(preferences, key: preferencesKey)
     }
 

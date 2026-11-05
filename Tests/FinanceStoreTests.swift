@@ -120,7 +120,7 @@ final class FinanceStoreTests: XCTestCase {
     func testBackupRejectsUnsupportedSchemaVersion() throws {
         let (store, defaults, suite) = makeStore()
         defer { defaults.removePersistentDomain(forName: suite) }
-        var backup = LiquidFinanceBackupPackage(transactions: [], budgets: [], preferences: FinancePreferences(), categories: [], wallets: [])
+        var backup = LiquidFinanceBackupPackage(transactions: [], budgets: [], preferences: FinancePreferences(), categories: [], wallets: [], recurringRules: [])
         backup.schemaVersion = 99
         let invalid = try LiquidFinanceArchive.encode(backup)
         XCTAssertThrowsError(try store.restoreBackup(invalid))

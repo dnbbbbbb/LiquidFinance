@@ -14,7 +14,7 @@
 - Báo cáo 6 tháng và cơ cấu chi tiêu theo danh mục.
 - Danh mục cha/con có thể tùy chỉnh; ví tiền mặt, ngân hàng, thẻ và ví điện tử.
 - Trung tâm dữ liệu LiquidFinance: xuất/nhập dữ liệu bằng tệp `.liquidfinance-data` và sao lưu/khôi phục toàn bộ ứng dụng bằng tệp `.liquidfinance-backup`.
-- Chọn giao diện sáng, tối hoặc tự động theo thiết bị.
+- Chọn giao diện sáng, tối, tự động theo thiết bị hoặc “Hồng dễ thương” với bảng màu hồng lấy cảm hứng từ Sanrio.
 - Nhắc nhập giao dịch cuối ngày với giờ do bạn chọn.
 - App icon LiquidFinance, định dạng ngày giờ `dd/MM/yyyy · HH:mm`, và chọn tháng/năm trực tiếp trên màn hình Tổng quan, Giao dịch, Ngân sách và Báo cáo.
 - Chọn biểu tượng khi tạo danh mục; tám danh mục dùng nhiều nhất hiển thị trước trong biểu mẫu giao dịch.
