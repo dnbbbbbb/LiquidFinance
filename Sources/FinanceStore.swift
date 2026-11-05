@@ -49,6 +49,11 @@ final class FinanceStore: ObservableObject {
             .reduce(0) { $0 + ($1.type == .income ? $1.amount : -$1.amount) }
     }
 
+    var mostRecentlyUsedWallet: FinanceWallet {
+        let recentWalletID = transactions.sorted { $0.date > $1.date }.first(where: { $0.transferID == nil })?.walletID
+        return wallets.first(where: { $0.id == recentWalletID }) ?? wallets.first ?? FinanceWallet(name: "Tiền mặt")
+    }
+
     func transactions(in month: Date, calendar: Calendar = .current) -> [FinanceTransaction] {
         transactions.filter { calendar.isDate($0.date, equalTo: month, toGranularity: .month) }
     }

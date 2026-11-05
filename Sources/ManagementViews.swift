@@ -109,6 +109,7 @@ private struct CategoryEditorView: View {
                     .padding(.vertical, 4)
                 }
                 Section("Màu sắc") {
+                    ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
                         Button { colorHex = nil } label: {
                             Image(systemName: colorHex == nil ? "checkmark" : "circle")
@@ -128,6 +129,8 @@ private struct CategoryEditorView: View {
                             }
                             .buttonStyle(.plain)
                         }
+                    }
+                    .padding(.vertical, 3)
                     }
                 }
                 Text("Danh mục con sẽ được hiển thị bên trong nhóm cha.").font(.system(size: 13)).foregroundStyle(FinanceStyle.muted)
@@ -159,8 +162,8 @@ private struct CategoryEditorView: View {
         dismiss()
     }
 
-    private static let symbols = ["circle.grid.2x2.fill", "fork.knife", "cart.fill", "car.fill", "house.fill", "bolt.fill", "heart.fill", "cross.case.fill", "book.closed.fill", "gamecontroller.fill", "gift.fill", "briefcase.fill", "bag.fill", "phone.fill", "airplane", "pawprint.fill", "music.note", "creditcard.fill", "banknote.fill", "ellipsis.circle.fill"]
-    private static let colors: [UInt32] = [0x665DF2, 0xF09A56, 0x5187E8, 0xBD73D7, 0xEA7284, 0x36AFA1, 0xE1A53C, 0x22A879]
+    private static let symbols = ["circle.grid.2x2.fill", "fork.knife", "cart.fill", "car.fill", "house.fill", "bolt.fill", "heart.fill", "cross.case.fill", "book.closed.fill", "gamecontroller.fill", "gift.fill", "briefcase.fill", "bag.fill", "phone.fill", "airplane", "pawprint.fill", "music.note", "creditcard.fill", "banknote.fill", "ellipsis.circle.fill", "cup.and.saucer.fill", "takeoutbag.and.cup.and.straw.fill", "tram.fill", "bicycle", "bus.fill", "fuelpump.fill", "wifi", "lightbulb.fill", "drop.fill", "leaf.fill", "dumbbell.fill", "figure.run", "stethoscope", "graduationcap.fill", "laptopcomputer", "wrench.and.screwdriver.fill", "building.2.fill", "bed.double.fill", "dog.fill", "cat.fill", "ticket.fill", " 영화.fill", "camera.fill", "shippingbox.fill", "arrow.left.arrow.right.circle.fill", "chart.line.uptrend.xyaxis", "dollarsign.circle.fill", "eurosign.circle.fill", "sterlingsign.circle.fill", "wallet.bifold.fill"]
+    private static let colors: [UInt32] = [0x665DF2, 0xF09A56, 0x5187E8, 0xBD73D7, 0xEA7284, 0x36AFA1, 0xE1A53C, 0x22A879, 0xE05D44, 0x4D6B50, 0xD64F91, 0x3E9CBE, 0xA87D32, 0x7257A8, 0x607D8B, 0xC0392B, 0x16A085, 0x2C3E50]
 }
 
 struct WalletManagementView: View {

@@ -163,7 +163,7 @@ struct TransactionEditorView: View {
         _date = State(initialValue: transaction?.date ?? .now)
         _category = State(initialValue: transaction?.category ?? .food)
         let existingWallet = store.wallets.first(where: { $0.id == transaction?.walletID }) ?? store.wallets.first(where: { $0.name == transaction?.account })
-        _walletID = State(initialValue: existingWallet?.id ?? store.wallets.first?.id ?? UUID())
+        _walletID = State(initialValue: existingWallet?.id ?? store.mostRecentlyUsedWallet.id)
         _note = State(initialValue: transaction?.note ?? "")
         _includeInReports = State(initialValue: transaction?.includeInReports ?? true)
         _usesCategoryAsTitle = State(initialValue: transaction.map { $0.title == $0.category.name } ?? true)
@@ -229,8 +229,9 @@ struct TransactionEditorView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
-                                .background(category == item ? FinanceStyle.purpleLight : FinanceStyle.background, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(category == item ? FinanceStyle.purple : .clear, lineWidth: 1.5))
+                                .background(category == item ? FinanceStyle.purple : FinanceStyle.background, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(category == item ? Color.white.opacity(0.9) : .clear, lineWidth: 2))
+                                .foregroundStyle(category == item ? .white : FinanceStyle.ink)
                             }
                             .buttonStyle(.plain)
                         }
