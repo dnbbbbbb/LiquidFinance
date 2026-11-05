@@ -45,7 +45,7 @@ struct DashboardView: View {
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(FinanceStyle.green)
                 .frame(width: 50, height: 50)
-                .background(.white, in: Circle())
+                .background(FinanceStyle.card, in: Circle())
                 .overlay(Circle().stroke(FinanceStyle.line, lineWidth: 1))
                 .accessibilityLabel("Liquid Finance")
         }
@@ -58,7 +58,7 @@ struct DashboardView: View {
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(FinanceStyle.muted)
                     .frame(width: 34, height: 34)
-                    .background(.white, in: Circle())
+                    .background(FinanceStyle.card, in: Circle())
             }
             .accessibilityLabel("Tháng trước")
             Text(DateText.monthYear(month))
@@ -70,7 +70,7 @@ struct DashboardView: View {
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(FinanceStyle.muted)
                     .frame(width: 34, height: 34)
-                    .background(.white, in: Circle())
+                    .background(FinanceStyle.card, in: Circle())
             }
             .accessibilityLabel("Tháng sau")
             Spacer()
@@ -141,7 +141,7 @@ struct DashboardView: View {
             SectionHeading(title: "Giao dịch gần đây", actionTitle: "Tất cả", action: openTransactions)
             if monthTransactions.isEmpty {
                 EmptyState(symbol: "tray", title: "Chưa có giao dịch", message: "Thêm khoản thu hoặc chi đầu tiên để theo dõi dòng tiền của bạn.")
-                    .background(.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(monthTransactions.prefix(4).enumerated()), id: \.element.id) { index, transaction in
@@ -155,7 +155,7 @@ struct DashboardView: View {
                     }
                 }
                 .padding(.horizontal, 14)
-                .background(.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             }
         }
     }
@@ -183,7 +183,7 @@ struct DashboardView: View {
                         Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold)).foregroundStyle(FinanceStyle.muted)
                     }
                     .padding(16)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                 }
                 .buttonStyle(.plain)
             } else {
@@ -206,7 +206,7 @@ struct DashboardView: View {
                                 .tint(spent >= budget.monthlyLimit ? FinanceStyle.red : budget.category.tint)
                         }
                         .padding(16)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                     }
                 }
             }
@@ -245,6 +245,10 @@ struct TransactionRow: View {
                     .font(.system(size: 12))
                     .foregroundStyle(FinanceStyle.muted)
                     .lineLimit(1)
+                Text(transaction.account)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(FinanceStyle.purple)
+                    .lineLimit(1)
             }
             Spacer(minLength: 4)
             Text("\(transaction.type == .income ? "+" : "−")\(MoneyText.string(transaction.amount, currencyCode: currencyCode))")
@@ -258,3 +262,4 @@ struct TransactionRow: View {
         .accessibilityElement(children: .combine)
     }
 }
+

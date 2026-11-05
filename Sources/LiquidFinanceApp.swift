@@ -10,3 +10,4 @@ struct LiquidFinanceApp: App {
         }
     }
 }
+

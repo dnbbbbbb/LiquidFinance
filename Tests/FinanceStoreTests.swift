@@ -88,4 +88,41 @@ final class FinanceStoreTests: XCTestCase {
         XCTAssertTrue(restored.budgets.isEmpty)
         XCTAssertEqual(restored.preferences, FinancePreferences())
     }
+
+    func testCategoryHierarchyCountsChildSpendingInParentBudget() {
+        let (store, defaults, suite) = makeStore()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let parent = FinanceCategory(name: "Gia đình", type: .expense)
+        let child = FinanceCategory(name: "Thực phẩm", type: .expense, parentID: parent.id)
+        store.saveCategory(parent)
+        store.saveCategory(child)
+        store.addOrUpdate(FinanceTransaction(title: "Chợ", amount: 300, type: .expense, category: child))
+
+        XCTAssertEqual(store.spent(for: parent, in: .now), 300, accuracy: 0.001)
+    }
+
+    func testWalletBalanceAndBackupRestore() throws {
+        let (store, defaults, suite) = makeStore()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let wallet = FinanceWallet(name: "Ví điện tử", openingBalance: 1_000)
+        store.saveWallet(wallet)
+        store.addOrUpdate(FinanceTransaction(title: "Nạp tiền", amount: 250, type: .income, category: .salary, account: wallet.name, walletID: wallet.id))
+        XCTAssertEqual(store.balance(for: wallet), 1_250, accuracy: 0.001)
+
+        let backup = try store.backupData()
+        store.clearAllData()
+        try store.restoreBackup(backup)
+        XCTAssertEqual(store.wallets.first(where: { $0.id == wallet.id }), wallet)
+        XCTAssertEqual(store.transactions.count, 1)
+        XCTAssertEqual(store.balance(for: wallet), 1_250, accuracy: 0.001)
+    }
+
+    func testBackupRejectsUnsupportedSchemaVersion() throws {
+        let (store, defaults, suite) = makeStore()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var backup = FinanceBackup(transactions: [], budgets: [], preferences: FinancePreferences(), categories: [], wallets: [])
+        backup.schemaVersion = 99
+        let invalid = try JSONEncoder().encode(backup)
+        XCTAssertThrowsError(try store.restoreBackup(invalid))
+    }
 }

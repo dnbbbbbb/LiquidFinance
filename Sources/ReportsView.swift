@@ -21,7 +21,7 @@ struct ReportsView: View {
     private var monthExpense: Double { store.total(for: .expense, in: month) }
     private var monthIncome: Double { store.total(for: .income, in: month) }
     private var categoryTotals: [CategorySpend] {
-        FinanceCategory.expenseCategories
+        store.categories(for: .expense).filter { $0.parentID == nil }
             .map { CategorySpend(category: $0, amount: store.spent(for: $0, in: month)) }
             .filter { $0.amount > 0 }
             .sorted { $0.amount > $1.amount }
@@ -77,7 +77,7 @@ struct ReportsView: View {
                 .accessibilityLabel("Tháng sau")
         }
         .foregroundStyle(FinanceStyle.ink)
-        .background(.white, in: Capsule())
+        .background(FinanceStyle.card, in: Capsule())
     }
 
     private var summaryCards: some View {
@@ -103,7 +103,7 @@ struct ReportsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var trendCard: some View {
@@ -127,7 +127,7 @@ struct ReportsView: View {
             }
         }
         .padding(18)
-        .background(.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
     private var categoriesCard: some View {
@@ -162,7 +162,7 @@ struct ReportsView: View {
             }
         }
         .padding(18)
-        .background(.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
     private var insightCard: some View {
@@ -182,10 +182,11 @@ struct ReportsView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private func changeMonth(_ offset: Int) {
         if let next = Calendar.current.date(byAdding: .month, value: offset, to: month) { month = next }
     }
 }
+

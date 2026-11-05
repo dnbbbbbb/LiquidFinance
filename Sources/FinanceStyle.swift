@@ -1,16 +1,18 @@
 import SwiftUI
+import UIKit
 
 enum FinanceStyle {
-    static let background = Color(hex: 0xF5F6FA)
-    static let ink = Color(hex: 0x1E2235)
-    static let muted = Color(hex: 0x85899B)
+    static let background = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.07, green: 0.08, blue: 0.12, alpha: 1) : UIColor(red: 0.96, green: 0.97, blue: 0.99, alpha: 1) })
+    static let card = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.12, green: 0.13, blue: 0.18, alpha: 1) : .white })
+    static let ink = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? .white : UIColor(red: 0.12, green: 0.13, blue: 0.21, alpha: 1) })
+    static let muted = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.68, alpha: 1) : UIColor(red: 0.52, green: 0.54, blue: 0.61, alpha: 1) })
     static let purple = Color(hex: 0x665DF2)
     static let purpleLight = Color(hex: 0xEFEDFF)
     static let green = Color(hex: 0x22A879)
     static let greenLight = Color(hex: 0xE6F7F0)
     static let red = Color(hex: 0xE66A74)
     static let redLight = Color(hex: 0xFFF0F0)
-    static let line = Color(hex: 0xEBEDF3)
+    static let line = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.25, alpha: 1) : UIColor(red: 0.92, green: 0.93, blue: 0.96, alpha: 1) })
 }
 
 extension Color {
@@ -25,20 +27,20 @@ extension Color {
 
 extension FinanceCategory {
     var tint: Color {
-        switch self {
-        case .food: return Color(hex: 0xF09A56)
-        case .transport: return Color(hex: 0x5187E8)
-        case .shopping: return Color(hex: 0xBD73D7)
-        case .housing: return Color(hex: 0xEA7284)
-        case .health: return Color(hex: 0x36AFA1)
-        case .entertainment: return Color(hex: 0xE1A53C)
-        case .education: return Color(hex: 0x5D9F77)
-        case .bills: return Color(hex: 0x7F7BE5)
-        case .salary: return FinanceStyle.green
-        case .bonus: return Color(hex: 0xE1A53C)
-        case .investment: return Color(hex: 0x5187E8)
-        case .gift: return Color(hex: 0xE66A94)
-        case .other: return Color(hex: 0x9297A8)
+        switch id {
+        case "food": return Color(hex: 0xF09A56)
+        case "transport": return Color(hex: 0x5187E8)
+        case "shopping": return Color(hex: 0xBD73D7)
+        case "housing": return Color(hex: 0xEA7284)
+        case "health": return Color(hex: 0x36AFA1)
+        case "entertainment": return Color(hex: 0xE1A53C)
+        case "education": return Color(hex: 0x5D9F77)
+        case "bills": return Color(hex: 0x7F7BE5)
+        case "salary": return FinanceStyle.green
+        case "bonus": return Color(hex: 0xE1A53C)
+        case "investment": return Color(hex: 0x5187E8)
+        case "gift": return Color(hex: 0xE66A94)
+        default: return Color(hex: 0x9297A8)
         }
     }
 }
@@ -138,3 +140,4 @@ struct EmptyState: View {
         .padding(.horizontal, 20)
     }
 }
+

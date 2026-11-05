@@ -29,7 +29,7 @@ struct BudgetsView: View {
                 SectionHeading(title: "Theo danh mục", actionTitle: "＋ Thêm") { activeSheet = .add }
                 if store.budgets.isEmpty {
                     EmptyState(symbol: "target", title: "Chi tiêu có kế hoạch", message: "Tạo ngân sách theo danh mục để biết mình đang đi đúng hướng.")
-                        .background(.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                 } else {
                     VStack(spacing: 12) {
                         ForEach(store.budgets.sorted { $0.category.rawValue < $1.category.rawValue }) { budget in
@@ -89,7 +89,7 @@ struct BudgetsView: View {
                 .accessibilityLabel("Tháng sau")
         }
         .foregroundStyle(FinanceStyle.ink)
-        .background(.white, in: Capsule())
+        .background(FinanceStyle.card, in: Capsule())
     }
 
     private var overviewCard: some View {
@@ -163,7 +163,7 @@ struct BudgetsView: View {
             .font(.system(size: 12))
         }
         .padding(17)
-        .background(.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private func changeMonth(_ offset: Int) {
@@ -191,8 +191,8 @@ struct BudgetEditorView: View {
             Form {
                 Section("Danh mục") {
                     Picker("Danh mục", selection: $category) {
-                        ForEach(FinanceCategory.expenseCategories) { item in
-                            Label(item.rawValue, systemImage: item.symbol).tag(item)
+                        ForEach(store.categories(for: .expense).filter { $0.parentID == nil }) { item in
+                            Label(item.name, systemImage: item.symbol).tag(item)
                         }
                     }
                 }
@@ -235,3 +235,4 @@ struct BudgetEditorView: View {
         dismiss()
     }
 }
+

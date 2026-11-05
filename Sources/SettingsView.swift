@@ -1,13 +1,20 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @ObservedObject var store: FinanceStore
     @State private var openingBalanceText = ""
-    @State private var showingResetConfirmation = false
     @State private var showingShareSheet = false
     @State private var exportURL: URL?
     @State private var showingExportError = false
+    @State private var showingImportPicker = false
+    @State private var backupToRestore: Data?
+    @State private var management: ManagementSheet?
+    @State private var confirmation: Confirmation?
+
+    private enum ManagementSheet: String, Identifiable { case categories, wallets; var id: String { rawValue } }
+    private enum Confirmation: Equatable { case reset, restore }
 
     private struct CurrencyOption: Identifiable {
         let code: String
@@ -29,6 +36,7 @@ struct SettingsView: View {
                 header
                 balanceSection
                 preferencesSection
+                managementSection
                 dataSection
                 aboutSection
             }
@@ -45,20 +53,53 @@ struct SettingsView: View {
                     .presentationDragIndicator(.visible)
             }
         }
-        .confirmationDialog("Xóa toàn bộ dữ liệu?", isPresented: $showingResetConfirmation, titleVisibility: .visible) {
-            Button("Xóa toàn bộ dữ liệu", role: .destructive) {
-                store.clearAllData()
-                openingBalanceText = "0"
+        .sheet(item: $management) { item in
+            switch item {
+            case .categories: CategoryManagementView(store: store)
+            case .wallets: WalletManagementView(store: store)
             }
-            Button("Hủy", role: .cancel) { }
-        } message: {
-            Text("Tất cả giao dịch, ngân sách và cài đặt trên iPhone này sẽ bị xóa.")
         }
-        .alert("Không thể xuất tệp", isPresented: $showingExportError) {
+        .fileImporter(isPresented: $showingImportPicker, allowedContentTypes: [.json], allowsMultipleSelection: false) { result in
+            do {
+                guard let url = try result.get().first else { return }
+                let granted = url.startAccessingSecurityScopedResource()
+                defer { if granted { url.stopAccessingSecurityScopedResource() } }
+                backupToRestore = try Data(contentsOf: url)
+                confirmation = .restore
+            } catch { showingExportError = true }
+        }
+        .confirmationDialog(confirmationTitle, isPresented: Binding(get: { confirmation != nil }, set: { if !$0 { confirmation = nil } }), titleVisibility: .visible) {
+            if confirmation == .restore {
+                Button("Thay thế dữ liệu hiện tại", role: .destructive) {
+                    guard let backupToRestore else { return }
+                    do {
+                        try store.restoreBackup(backupToRestore)
+                        openingBalanceText = String(store.preferences.openingBalance)
+                    } catch { showingExportError = true }
+                    self.backupToRestore = nil
+                    confirmation = nil
+                }
+                Button("Hủy", role: .cancel) { backupToRestore = nil; confirmation = nil }
+            } else if confirmation == .reset {
+                Button("Xóa toàn bộ dữ liệu", role: .destructive) {
+                    store.clearAllData()
+                    openingBalanceText = "0"
+                    confirmation = nil
+                }
+                Button("Hủy", role: .cancel) { confirmation = nil }
+            }
+        } message: {
+            Text(confirmation == .restore ? "Dữ liệu hiện tại sẽ được thay thế bằng nội dung trong tệp sao lưu." : "Tất cả giao dịch, ngân sách và cài đặt trên iPhone này sẽ bị xóa.")
+        }
+        .alert("Không thể xử lý tệp", isPresented: $showingExportError) {
             Button("Đã hiểu", role: .cancel) { }
         } message: {
-            Text("Hãy thử lại sau.")
+            Text("Kiểm tra tệp sao lưu rồi thử lại.")
         }
+    }
+
+    private var confirmationTitle: String {
+        confirmation == .restore ? "Khôi phục bản sao lưu?" : "Xóa toàn bộ dữ liệu?"
     }
 
     private var header: some View {
@@ -78,17 +119,17 @@ struct SettingsView: View {
 
     private var balanceSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label("Số dư ban đầu", systemImage: "banknote")
+            Label("Số dư ban đầu chưa gán ví", systemImage: "banknote")
                 .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(FinanceStyle.ink)
-            Text("Nhập số dư hiện có để tổng quan phản ánh đúng tình hình của bạn.")
+            Text("Khoản này được cộng vào tổng số dư. Bạn có thể nhập số dư riêng cho từng ví trong phần Quản lý ví.")
                 .font(.system(size: 13))
                 .foregroundStyle(FinanceStyle.muted)
             HStack(spacing: 10) {
                 TextField("0", text: $openingBalanceText)
                     .keyboardType(.decimalPad)
                     .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .accessibilityLabel("Số dư ban đầu")
+                    .accessibilityLabel("Số dư ban đầu chưa gán ví")
                 Text(store.preferences.currencyCode)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(FinanceStyle.muted)
@@ -103,7 +144,7 @@ struct SettingsView: View {
             .background(FinanceStyle.background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .padding(17)
-        .background(.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var preferencesSection: some View {
@@ -130,6 +171,21 @@ struct SettingsView: View {
                 .fixedSize()
             }
             Divider().overlay(FinanceStyle.line).padding(.vertical, 8)
+            HStack {
+                Label("Giao diện", systemImage: "circle.lefthalf.filled")
+                    .font(.system(size: 14, weight: .medium)).foregroundStyle(FinanceStyle.ink)
+                Spacer()
+                Picker("Giao diện", selection: Binding(
+                    get: { store.preferences.appearance },
+                    set: { value in store.updatePreferences { $0.appearance = value } }
+                )) {
+                    Text("Tự động").tag("system")
+                    Text("Sáng").tag("light")
+                    Text("Tối").tag("dark")
+                }
+                .labelsHidden().tint(FinanceStyle.purple).fixedSize()
+            }
+            Divider().overlay(FinanceStyle.line).padding(.vertical, 8)
             Toggle(isOn: Binding(
                 get: { store.preferences.hidesBalance },
                 set: { value in store.updatePreferences { $0.hidesBalance = value } }
@@ -141,7 +197,7 @@ struct SettingsView: View {
             .tint(FinanceStyle.purple)
         }
         .padding(17)
-        .background(.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(alignment: .bottomLeading) {
             Text("Đổi đơn vị tiền không quy đổi các số tiền đã nhập.")
                 .font(.system(size: 11))
@@ -150,6 +206,22 @@ struct SettingsView: View {
                 .offset(y: 23)
         }
         .padding(.bottom, 22)
+    }
+
+    private var managementSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Quản lý", systemImage: "slider.horizontal.3")
+                .font(.system(size: 15, weight: .bold)).foregroundStyle(FinanceStyle.ink)
+            Button { management = .categories } label: {
+                settingsActionRow(icon: "square.grid.2x2", title: "Danh mục cha và con", color: FinanceStyle.purple)
+            }.buttonStyle(.plain)
+            Divider().overlay(FinanceStyle.line)
+            Button { management = .wallets } label: {
+                settingsActionRow(icon: "wallet.bifold", title: "Ví và nguồn tiền", color: FinanceStyle.purple)
+            }.buttonStyle(.plain)
+        }
+        .padding(17)
+        .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var dataSection: some View {
@@ -162,13 +234,21 @@ struct SettingsView: View {
             }
             .buttonStyle(.plain)
             Divider().overlay(FinanceStyle.line)
-            Button { showingResetConfirmation = true } label: {
+            Button(action: exportBackup) {
+                settingsActionRow(icon: "externaldrive.badge.checkmark", title: "Sao lưu toàn bộ dữ liệu (JSON)", color: FinanceStyle.purple)
+            }.buttonStyle(.plain)
+            Divider().overlay(FinanceStyle.line)
+            Button { showingImportPicker = true } label: {
+                settingsActionRow(icon: "square.and.arrow.down", title: "Nhập bản sao lưu JSON", color: FinanceStyle.purple)
+            }.buttonStyle(.plain)
+            Divider().overlay(FinanceStyle.line)
+            Button { confirmation = .reset } label: {
                 settingsActionRow(icon: "trash", title: "Xóa toàn bộ dữ liệu", color: FinanceStyle.red)
             }
             .buttonStyle(.plain)
         }
         .padding(17)
-        .background(.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private func settingsActionRow(icon: String, title: String, color: Color) -> some View {
@@ -190,10 +270,10 @@ struct SettingsView: View {
             Text("Liquid Finance")
                 .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(FinanceStyle.ink)
-            Text("Đơn giản, riêng tư, dành cho bạn · Phiên bản 1.0")
+            Text("Đơn giản, riêng tư, dành cho bạn · Phiên bản 1.0.0")
                 .font(.system(size: 12))
                 .foregroundStyle(FinanceStyle.muted)
-            Text("Mọi dữ liệu được lưu trên thiết bị và không cần tạo tài khoản.")
+            Text("Dữ liệu lưu trên thiết bị. Hãy xuất và cất tệp sao lưu ngoài ứng dụng để khôi phục sau khi cài lại.")
                 .font(.system(size: 12))
                 .foregroundStyle(FinanceStyle.muted)
                 .multilineTextAlignment(.center)
@@ -216,11 +296,20 @@ struct SettingsView: View {
         exportURL = url
         showingShareSheet = true
     }
+
+    private func exportBackup() {
+        do {
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("LiquidFinance-Backup-\(Int(Date().timeIntervalSince1970)).json")
+            try store.backupData().write(to: url, options: .atomic)
+            exportURL = url
+            showingShareSheet = true
+        } catch { showingExportError = true }
+    }
 }
 
 private enum CSVExporter {
     static func createFile(transactions: [FinanceTransaction]) -> URL? {
-        let header = ["Ngày", "Loại", "Tên", "Danh mục", "Số tiền", "Tài khoản", "Ghi chú"]
+        let header = ["Ngày", "Loại", "Tên", "Danh mục", "Số tiền", "Ví", "Ghi chú"]
         let rows = transactions.sorted { $0.date < $1.date }.map { transaction in
             [
                 ISO8601DateFormatter().string(from: transaction.date),
@@ -256,3 +345,4 @@ private struct ActivityShareSheet: UIViewControllerRepresentable {
 
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) { }
 }
+

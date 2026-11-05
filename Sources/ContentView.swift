@@ -62,6 +62,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingNewTransaction) {
             TransactionEditorView(store: store)
         }
-        .preferredColorScheme(.light)
+        .preferredColorScheme(store.preferences.appearance == "light" ? .light : (store.preferences.appearance == "dark" ? .dark : nil))
     }
 }
+

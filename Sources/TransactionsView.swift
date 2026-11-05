@@ -37,7 +37,7 @@ struct TransactionsView: View {
                         title: searchText.isEmpty ? "Chưa có giao dịch" : "Không tìm thấy kết quả",
                         message: searchText.isEmpty ? "Nhấn nút + để thêm thu nhập hoặc chi tiêu." : "Thử từ khóa khác hoặc bỏ bộ lọc hiện tại."
                     )
-                    .background(.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                 } else {
                     VStack(spacing: 0) {
                         ForEach(Array(filteredTransactions.enumerated()), id: \.element.id) { index, transaction in
@@ -58,7 +58,7 @@ struct TransactionsView: View {
                             }
                         }
                     }
-                    .background(.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                 }
             }
             .padding(.horizontal, 20)
@@ -101,7 +101,7 @@ struct TransactionsView: View {
         }
         .padding(.horizontal, 16)
         .frame(height: 52)
-        .background(.white, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+        .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
     }
 
     private var filterPicker: some View {
@@ -113,7 +113,7 @@ struct TransactionsView: View {
                         .foregroundStyle(filter == option ? .white : FinanceStyle.muted)
                         .padding(.horizontal, 15)
                         .padding(.vertical, 10)
-                        .background(filter == option ? FinanceStyle.purple : .white, in: Capsule())
+                        .background(filter == option ? FinanceStyle.purple : FinanceStyle.card, in: Capsule())
                 }
                 .buttonStyle(.plain)
             }
@@ -132,11 +132,9 @@ struct TransactionEditorView: View {
     @State private var amountText: String
     @State private var date: Date
     @State private var category: FinanceCategory
-    @State private var account: String
+    @State private var walletID: UUID
     @State private var note: String
     @State private var showingValidationError = false
-
-    private let accounts = ["Tiền mặt", "Tài khoản ngân hàng", "Thẻ tín dụng"]
 
     init(store: FinanceStore, transaction: FinanceTransaction? = nil) {
         self.store = store
@@ -146,12 +144,13 @@ struct TransactionEditorView: View {
         _amountText = State(initialValue: transaction.map { String($0.amount) } ?? "")
         _date = State(initialValue: transaction?.date ?? .now)
         _category = State(initialValue: transaction?.category ?? .food)
-        _account = State(initialValue: transaction?.account ?? "Tiền mặt")
+        let existingWallet = store.wallets.first(where: { $0.id == transaction?.walletID }) ?? store.wallets.first(where: { $0.name == transaction?.account })
+        _walletID = State(initialValue: existingWallet?.id ?? store.wallets.first?.id ?? UUID())
         _note = State(initialValue: transaction?.note ?? "")
     }
 
     private var categories: [FinanceCategory] {
-        type == .expense ? FinanceCategory.expenseCategories : FinanceCategory.incomeCategories
+        store.categories(for: type)
     }
 
     var body: some View {
@@ -184,8 +183,8 @@ struct TransactionEditorView: View {
                         .textInputAutocapitalization(.sentences)
                         .accessibilityLabel("Tên giao dịch")
                     DatePicker("Ngày", selection: $date, displayedComponents: .date)
-                    Picker("Tài khoản", selection: $account) {
-                        ForEach(accounts, id: \.self) { Text($0).tag($0) }
+                    Picker("Ví", selection: $walletID) {
+                        ForEach(store.wallets) { wallet in Text(wallet.name).tag(wallet.id) }
                     }
                 }
 
@@ -195,7 +194,7 @@ struct TransactionEditorView: View {
                             Button { category = item } label: {
                                 VStack(spacing: 7) {
                                     CategoryIcon(category: item, size: 42)
-                                    Text(item.rawValue)
+                                    Text(categoryTitle(item))
                                         .font(.system(size: 11, weight: .medium))
                                         .foregroundStyle(FinanceStyle.ink)
                                         .lineLimit(1)
@@ -246,7 +245,12 @@ struct TransactionEditorView: View {
     }
 
     private func categoriesFor(_ value: TransactionType) -> [FinanceCategory] {
-        value == .expense ? FinanceCategory.expenseCategories : FinanceCategory.incomeCategories
+        store.categories(for: value)
+    }
+
+    private func categoryTitle(_ item: FinanceCategory) -> String {
+        guard let parentID = item.parentID, let parent = store.categories.first(where: { $0.id == parentID }) else { return item.name }
+        return "\(parent.name) › \(item.name)"
     }
 
     private func save() {
@@ -261,9 +265,13 @@ struct TransactionEditorView: View {
         saved.date = date
         saved.type = type
         saved.category = category
-        saved.account = account
+        if let wallet = store.wallets.first(where: { $0.id == walletID }) {
+            saved.account = wallet.name
+            saved.walletID = wallet.id
+        }
         saved.note = note.trimmingCharacters(in: .whitespacesAndNewlines)
         store.addOrUpdate(saved)
         dismiss()
     }
 }
+
