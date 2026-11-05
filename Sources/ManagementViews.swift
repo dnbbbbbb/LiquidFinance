@@ -226,7 +226,7 @@ struct WalletManagementView: View {
     }
 }
 
-private struct InternalTransferEditor: View {
+struct InternalTransferEditor: View {
     @ObservedObject var store: FinanceStore
     @Environment(\.dismiss) private var dismiss
     @State private var sourceID: UUID
@@ -238,8 +238,8 @@ private struct InternalTransferEditor: View {
 
     init(store: FinanceStore) {
         self.store = store
-        let source = store.wallets.first?.id ?? UUID()
-        let destination = store.wallets.dropFirst().first?.id ?? source
+        let source = store.mostRecentlyUsedWallet.id
+        let destination = store.wallets.first(where: { $0.id != source })?.id ?? source
         _sourceID = State(initialValue: source)
         _destinationID = State(initialValue: destination)
     }

@@ -264,8 +264,9 @@ struct FinancePreferences: Codable, Equatable {
     var reminderEnabled: Bool = false
     var reminderHour: Int = 20
     var reminderMinute: Int = 0
+    var budgetAlertsEnabled: Bool = true
 
-    private enum CodingKeys: String, CodingKey { case currencyCode, openingBalance, hidesBalance, appearance, reminderEnabled, reminderHour, reminderMinute }
+    private enum CodingKeys: String, CodingKey { case currencyCode, openingBalance, hidesBalance, appearance, reminderEnabled, reminderHour, reminderMinute, budgetAlertsEnabled }
     init() { }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -276,6 +277,7 @@ struct FinancePreferences: Codable, Equatable {
         reminderEnabled = try values.decodeIfPresent(Bool.self, forKey: .reminderEnabled) ?? false
         reminderHour = try values.decodeIfPresent(Int.self, forKey: .reminderHour) ?? 20
         reminderMinute = try values.decodeIfPresent(Int.self, forKey: .reminderMinute) ?? 0
+        budgetAlertsEnabled = try values.decodeIfPresent(Bool.self, forKey: .budgetAlertsEnabled) ?? true
     }
 }
 

@@ -126,6 +126,16 @@ final class FinanceStoreTests: XCTestCase {
         XCTAssertThrowsError(try store.restoreBackup(invalid))
     }
 
+    func testBackupTracksTheLatestLocalChangeForCloudSync() throws {
+        let (store, defaults, suite) = makeStore()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        store.addOrUpdate(FinanceTransaction(title: "Cà phê", amount: 40, type: .expense, category: .food))
+
+        let backup = try JSONDecoder().decode(FinanceBackup.self, from: store.backupData())
+        XCTAssertGreaterThan(backup.exportedAt, .distantPast)
+        XCTAssertEqual(backup.transactions.count, 1)
+    }
+
     func testAmountInputParsesAndFormatsVietnameseSeparators() {
         XCTAssertEqual(AmountInput.parse("1.234.567"), 1_234_567)
         XCTAssertEqual(AmountInput.parse("1.234.567,50"), 1_234_567.5)

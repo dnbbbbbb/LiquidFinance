@@ -12,6 +12,9 @@ final class FinanceStore: ObservableObject {
     @Published private(set) var categories: [FinanceCategory]
     @Published private(set) var wallets: [FinanceWallet]
     @Published private(set) var recurringRules: [RecurringRule]
+    @Published private(set) var iCloudSyncEnabled: Bool
+    @Published private(set) var iCloudStatus = "Chưa bật"
+    @Published private(set) var lastICloudSyncDate: Date?
 
     private let defaults: UserDefaults
     private let transactionsKey = "finance.transactions.v1"
@@ -20,6 +23,9 @@ final class FinanceStore: ObservableObject {
     private let categoriesKey = "finance.categories.v1"
     private let walletsKey = "finance.wallets.v1"
     private let recurringKey = "finance.recurring.v1"
+    private let iCloudSyncKey = "finance.icloud.sync.enabled"
+    private let dataUpdatedKey = "finance.data.updated-at"
+    private let iCloudSyncDateKey = "finance.icloud.last-sync"
     private let widgetDefaults = UserDefaults(suiteName: "group.vn.liquidfinance")
 
     init(defaults: UserDefaults = .standard) {
@@ -35,6 +41,12 @@ final class FinanceStore: ObservableObject {
         }
         self.wallets = loadedWallets
         self.recurringRules = Self.decode([RecurringRule].self, from: defaults, key: "finance.recurring.v1") ?? []
+        self.iCloudSyncEnabled = defaults.object(forKey: "finance.icloud.sync.enabled") as? Bool ?? false
+        self.lastICloudSyncDate = defaults.object(forKey: "finance.icloud.last-sync") as? Date
+        if defaults.object(forKey: dataUpdatedKey) == nil,
+           !loadedTransactions.isEmpty || !self.budgets.isEmpty || !self.recurringRules.isEmpty {
+            defaults.set(Date.now, forKey: dataUpdatedKey)
+        }
         syncWidgetSnapshot()
     }
 
@@ -128,7 +140,7 @@ final class FinanceStore: ObservableObject {
             }
             recurringRules[index] = rule
         }
-        if changed { persist(transactions, key: transactionsKey); persist(recurringRules, key: recurringKey) }
+        if changed { persist(transactions, key: transactionsKey); persist(recurringRules, key: recurringKey); evaluateBudgetAlerts() }
     }
 
     func categories(for type: TransactionType) -> [FinanceCategory] { categories.filter { $0.type == type } }
@@ -178,6 +190,7 @@ final class FinanceStore: ObservableObject {
             transactions.append(transaction)
         }
         persist(transactions, key: transactionsKey)
+        evaluateBudgetAlerts()
     }
 
     func deleteTransaction(id: UUID) {
@@ -200,6 +213,7 @@ final class FinanceStore: ObservableObject {
         budgets.removeAll { $0.id == budget.id || $0.category == budget.category }
         budgets.append(budget)
         persist(budgets, key: budgetsKey)
+        evaluateBudgetAlerts()
     }
 
     func deleteBudget(id: UUID) {
@@ -210,6 +224,46 @@ final class FinanceStore: ObservableObject {
     func updatePreferences(_ update: (inout FinancePreferences) -> Void) {
         update(&preferences)
         persist(preferences, key: preferencesKey)
+    }
+
+    func setICloudSyncEnabled(_ enabled: Bool) {
+        iCloudSyncEnabled = enabled
+        defaults.set(enabled, forKey: iCloudSyncKey)
+        if enabled {
+            Task { await syncWithICloud() }
+        } else {
+            iCloudStatus = "Đã tắt"
+        }
+    }
+
+    func syncWithICloud() async {
+        guard iCloudSyncEnabled else { return }
+        iCloudStatus = "Đang đồng bộ…"
+        guard let url = iCloudBackupURL() else {
+            iCloudStatus = "iCloud Drive chưa sẵn sàng"
+            return
+        }
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let local = try backupData()
+            let localBackup = try JSONDecoder().decode(FinanceBackup.self, from: local)
+            if FileManager.default.fileExists(atPath: url.path) {
+                let remoteData = try Data(contentsOf: url)
+                let remoteBackup = try JSONDecoder().decode(FinanceBackup.self, from: remoteData)
+                if remoteBackup.exportedAt > localBackup.exportedAt {
+                    try restoreBackup(remoteData, scheduleSync: false)
+                } else if localBackup.exportedAt > remoteBackup.exportedAt {
+                    try local.write(to: url, options: .atomic)
+                }
+            } else {
+                try local.write(to: url, options: .atomic)
+            }
+            lastICloudSyncDate = .now
+            defaults.set(lastICloudSyncDate, forKey: iCloudSyncDateKey)
+            iCloudStatus = "Đã đồng bộ"
+        } catch {
+            iCloudStatus = "Không thể đồng bộ"
+        }
     }
 
     func syncBalanceVisibility(_ isHidden: Bool) {
@@ -236,24 +290,69 @@ final class FinanceStore: ObservableObject {
     }
 
     func backupData() throws -> Data {
-        try JSONEncoder().encode(FinanceBackup(transactions: transactions, budgets: budgets, preferences: preferences, categories: categories, wallets: wallets, recurringRules: recurringRules))
+        let updatedAt = defaults.object(forKey: dataUpdatedKey) as? Date ?? .distantPast
+        return try JSONEncoder().encode(FinanceBackup(exportedAt: updatedAt, transactions: transactions, budgets: budgets, preferences: preferences, categories: categories, wallets: wallets, recurringRules: recurringRules))
     }
 
-    func restoreBackup(_ data: Data) throws {
+    func restoreBackup(_ data: Data) throws { try restoreBackup(data, scheduleSync: true) }
+
+    private func restoreBackup(_ data: Data, scheduleSync: Bool) throws {
         let backup = try JSONDecoder().decode(FinanceBackup.self, from: data)
         guard backup.schemaVersion == 1 else { throw FinanceBackupError.unsupportedVersion }
         transactions = backup.transactions; budgets = backup.budgets; preferences = backup.preferences
         categories = backup.categories; wallets = backup.wallets
         recurringRules = backup.recurringRules
+        defaults.set(backup.exportedAt, forKey: dataUpdatedKey)
         defaults.set(preferences.hidesBalance, forKey: "isBalanceHidden")
         persist(transactions, key: transactionsKey); persist(budgets, key: budgetsKey); persist(preferences, key: preferencesKey)
         persist(categories, key: categoriesKey); persist(wallets, key: walletsKey); persist(recurringRules, key: recurringKey)
+        defaults.set(backup.exportedAt, forKey: dataUpdatedKey)
+        if scheduleSync { scheduleICloudSync() }
     }
 
     private func persist<T: Encodable>(_ value: T, key: String) {
         guard let data = try? JSONEncoder().encode(value) else { return }
         defaults.set(data, forKey: key)
+        defaults.set(Date.now, forKey: dataUpdatedKey)
         syncWidgetSnapshot()
+        scheduleICloudSync()
+    }
+
+    private func scheduleICloudSync() {
+        guard iCloudSyncEnabled else { return }
+        Task { await syncWithICloud() }
+    }
+
+    private func iCloudBackupURL() -> URL? {
+        FileManager.default.url(forUbiquityContainerIdentifier: "iCloud.vn.liquidfinance.app")?
+            .appendingPathComponent("Documents", isDirectory: true)
+            .appendingPathComponent("LiquidFinance", isDirectory: true)
+            .appendingPathComponent("finance-backup.json", isDirectory: false)
+    }
+
+    private func evaluateBudgetAlerts() {
+        guard preferences.budgetAlertsEnabled else { return }
+        for budget in budgets where budget.monthlyLimit > 0 {
+            let range = budget.period.range(containing: .now)
+            let amount = spent(for: budget, from: range.0, through: range.1)
+            let ratio = amount / budget.monthlyLimit
+            let level: (key: String, title: String, body: String)?
+            if ratio > 1 {
+                level = ("over", "Đã vượt ngân sách", "Bạn đã chi \(MoneyText.string(amount, currencyCode: preferences.currencyCode)), vượt \(MoneyText.string(amount - budget.monthlyLimit, currencyCode: preferences.currencyCode)).")
+            } else if ratio >= 1 {
+                level = ("reached", "Đã đạt giới hạn ngân sách", "Bạn đã dùng hết \(MoneyText.string(budget.monthlyLimit, currencyCode: preferences.currencyCode)) cho \(budget.category.name).")
+            } else if ratio >= 0.8 {
+                level = ("warning", "Sắp hết ngân sách", "Bạn đã dùng \(Int(ratio * 100))% ngân sách \(budget.category.name).")
+            } else {
+                level = nil
+            }
+            guard let level else { continue }
+            let period = Int(range.0.timeIntervalSince1970)
+            let stateKey = "finance.budget.alert.\(budget.id.uuidString).\(period)"
+            guard defaults.string(forKey: stateKey) != level.key else { continue }
+            defaults.set(level.key, forKey: stateKey)
+            Task { await BudgetAlertNotification.send(identifier: stateKey, title: level.title, body: level.body) }
+        }
     }
 
     private func syncWidgetSnapshot() {
@@ -291,7 +390,7 @@ struct FinanceBackup: Codable {
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try values.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
-        exportedAt = try values.decodeIfPresent(Date.self, forKey: .exportedAt) ?? .now
+        exportedAt = try values.decodeIfPresent(Date.self, forKey: .exportedAt) ?? .distantPast
         transactions = try values.decode([FinanceTransaction].self, forKey: .transactions)
         budgets = try values.decode([SpendingBudget].self, forKey: .budgets)
         preferences = try values.decode(FinancePreferences.self, forKey: .preferences)

@@ -54,6 +54,7 @@ struct SettingsView: View {
         .onAppear {
             reminderTime = Calendar.current.date(bySettingHour: store.preferences.reminderHour, minute: store.preferences.reminderMinute, second: 0, of: .now) ?? .now
             if store.preferences.reminderEnabled { scheduleReminder(true) }
+            if store.preferences.budgetAlertsEnabled { configureBudgetAlerts(true) }
         }
         .onChange(of: reminderTime) { value in
             let parts = Calendar.current.dateComponents([.hour, .minute], from: value)
@@ -110,6 +111,11 @@ struct SettingsView: View {
             Button("Đã hiểu", role: .cancel) { }
         } message: {
             Text("Kiểm tra tệp sao lưu rồi thử lại.")
+        }
+        .alert("Không thể bật thông báo", isPresented: $notificationUnavailable) {
+            Button("Đã hiểu", role: .cancel) { }
+        } message: {
+            Text("Hãy cho phép thông báo trong Cài đặt iPhone để nhận nhắc nhở và cảnh báo ngân sách.")
         }
     }
 
@@ -194,6 +200,17 @@ struct SettingsView: View {
                 Text("Hãy cho phép thông báo trong Cài đặt iPhone để nhận nhắc nhở.")
                     .font(.system(size: 12)).foregroundStyle(FinanceStyle.red)
             }
+            Divider().overlay(FinanceStyle.line).padding(.vertical, 8)
+            Toggle("Cảnh báo khi gần hết ngân sách", isOn: Binding(
+                get: { store.preferences.budgetAlertsEnabled },
+                set: { value in
+                    store.updatePreferences { $0.budgetAlertsEnabled = value }
+                    configureBudgetAlerts(value)
+                }
+            ))
+            .tint(FinanceStyle.purple)
+            Text("Thông báo khi đã dùng 80%, đạt giới hạn hoặc vượt ngân sách.")
+                .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
         }
         .padding(17)
         .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -256,6 +273,25 @@ struct SettingsView: View {
                 settingsActionRow(icon: "square.and.arrow.down", title: "Nhập bản sao lưu JSON", color: FinanceStyle.purple)
             }.buttonStyle(.plain)
             Divider().overlay(FinanceStyle.line)
+            Toggle(isOn: Binding(get: { store.iCloudSyncEnabled }, set: { store.setICloudSyncEnabled($0) })) {
+                Label("Sao lưu và đồng bộ iCloud", systemImage: "icloud.and.arrow.up")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(FinanceStyle.purple)
+            }
+            .tint(FinanceStyle.purple)
+            HStack {
+                Text(store.iCloudStatus)
+                Spacer()
+                if store.iCloudSyncEnabled {
+                    Button("Đồng bộ ngay") { Task { await store.syncWithICloud() } }
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(FinanceStyle.purple)
+                }
+            }
+            .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
+            Text("Lưu bản sao theo tài khoản iCloud của bạn; bản mới hơn sẽ được dùng khi đồng bộ giữa các thiết bị.")
+                .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
+            Divider().overlay(FinanceStyle.line)
             Button { confirmation = .reset } label: {
                 settingsActionRow(icon: "trash", title: "Xóa toàn bộ dữ liệu", color: FinanceStyle.red)
             }
@@ -287,7 +323,7 @@ struct SettingsView: View {
             Text("Đơn giản, riêng tư, dành cho bạn · Phiên bản \(appVersion)")
                 .font(.system(size: 12))
                 .foregroundStyle(FinanceStyle.muted)
-            Text("Dữ liệu lưu trên thiết bị. Hãy xuất và cất tệp sao lưu ngoài ứng dụng để khôi phục sau khi cài lại.")
+            Text("Dữ liệu lưu trên thiết bị; bạn có thể bật iCloud để sao lưu và đồng bộ an toàn giữa các thiết bị.")
                 .font(.system(size: 12))
                 .foregroundStyle(FinanceStyle.muted)
                 .multilineTextAlignment(.center)
@@ -304,6 +340,16 @@ struct SettingsView: View {
             await MainActor.run {
                 notificationUnavailable = enabled && !success
                 if enabled && !success { store.updatePreferences { $0.reminderEnabled = false } }
+            }
+        }
+    }
+
+    private func configureBudgetAlerts(_ enabled: Bool) {
+        Task {
+            let success = await BudgetAlertNotification.configure(enabled: enabled)
+            await MainActor.run {
+                notificationUnavailable = enabled && !success
+                if enabled && !success { store.updatePreferences { $0.budgetAlertsEnabled = false } }
             }
         }
     }

@@ -31,3 +31,25 @@ enum DailyReminder {
         catch { return false }
     }
 }
+
+enum BudgetAlertNotification {
+    static func configure(enabled: Bool) async -> Bool {
+        guard enabled else { return true }
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        if settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional { return true }
+        guard settings.authorizationStatus == .notDetermined else { return false }
+        return (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+    }
+
+    static func send(identifier: String, title: String, body: String) async {
+        guard await configure(enabled: true) else { return }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        try? await UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
+        )
+    }
+}
