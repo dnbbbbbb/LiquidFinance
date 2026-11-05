@@ -63,7 +63,9 @@ struct SettingsView: View {
             if store.preferences.reminderEnabled { scheduleReminder(true) }
         }
         .onAppear { store.syncBalanceVisibility(isBalanceHidden) }
-        .onChange(of: isBalanceHidden) { store.syncBalanceVisibility($0) }
+        .onChange(of: isBalanceHidden) { isHidden in
+            store.syncBalanceVisibility(isHidden)
+        }
         .sheet(isPresented: $showingShareSheet) {
             if let exportURL {
                 ActivityShareSheet(items: [exportURL])
