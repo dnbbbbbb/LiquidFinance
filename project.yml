@@ -10,8 +10,8 @@ settings:
     SWIFT_VERSION: "5.0"
     IPHONEOS_DEPLOYMENT_TARGET: "16.0"
     TARGETED_DEVICE_FAMILY: "1"
-    MARKETING_VERSION: "3.0.0"
-    CURRENT_PROJECT_VERSION: "3"
+    MARKETING_VERSION: "3.2.0"
+    CURRENT_PROJECT_VERSION: "32"
     GENERATE_INFOPLIST_FILE: YES
     INFOPLIST_KEY_CFBundleDisplayName: "Ví Tài Chính"
     INFOPLIST_KEY_UILaunchScreen_Generation: YES
@@ -28,6 +28,25 @@ targets:
         PRODUCT_NAME: LiquidFinance
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_ENTITLEMENTS: LiquidFinance.entitlements
+    dependencies:
+      - target: LiquidFinanceWidgets
+        embed: true
+  LiquidFinanceWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widgets
+    info:
+      path: Widgets/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: vn.liquidfinance.app.widgets
+        PRODUCT_NAME: LiquidFinanceWidgets
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: Widgets/LiquidFinanceWidgets.entitlements
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        GENERATE_INFOPLIST_FILE: NO
   LiquidFinanceTests:
     type: bundle.unit-test
     platform: iOS

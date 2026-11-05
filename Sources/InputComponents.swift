@@ -74,6 +74,7 @@ struct AmountTextField: UIViewRepresentable {
         let toolbar = UIToolbar()
         toolbar.sizeToFit()
         toolbar.items = [
+            UIBarButtonItem(title: "000", style: .plain, target: context.coordinator, action: #selector(Coordinator.appendZeros)),
             UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil),
             UIBarButtonItem(title: "Xong", style: .done, target: context.coordinator, action: #selector(Coordinator.done))
         ]
@@ -123,6 +124,20 @@ struct AmountTextField: UIViewRepresentable {
 
         @objc func done() { Keyboard.dismiss() }
 
+        @objc func appendZeros() {
+            guard let field = activeField else { return }
+            let current = field.text ?? ""
+            let raw = current.replacingOccurrences(of: ".", with: "") + "000"
+            let pieces = raw.split(separator: ",", omittingEmptySubsequences: false)
+            let result = group(String(pieces.first ?? "")) + (pieces.count > 1 ? "," + pieces.dropFirst().joined() : "")
+            parent.text = result
+            field.text = result
+            field.selectedTextRange = field.textRange(from: field.endOfDocument, to: field.endOfDocument)
+        }
+
+        weak var activeField: UITextField?
+        func textFieldDidBeginEditing(_ textField: UITextField) { activeField = textField }
+
         private func group(_ digits: String) -> String {
             let reversed = Array(digits.reversed())
             let chunks = stride(from: 0, to: reversed.count, by: 3).map { index in String(reversed[index..<min(index + 3, reversed.count)].reversed()) }
@@ -152,15 +167,37 @@ struct DateRangeFilterView: View {
         VStack(alignment: .leading, spacing: 10) {
             Toggle("Lọc theo thời gian", isOn: $isEnabled).tint(FinanceStyle.purple)
             if isEnabled {
-                DatePicker("Từ", selection: $start, displayedComponents: [.date, .hourAndMinute])
-                DatePicker("Đến", selection: $end, displayedComponents: [.date, .hourAndMinute])
-                Button("Không giới hạn ngày") { isEnabled = false }
-                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(FinanceStyle.purple)
+                DatePicker("Từ ngày", selection: $start, in: ...Date.now, displayedComponents: .date)
+                DatePicker("Đến ngày", selection: $end, in: ...Date.now, displayedComponents: .date)
+                Text("Tự động tính từ 00:00; ngày hiện tại kết thúc ở thời điểm hiện tại.")
+                    .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
             }
         }
         .font(.system(size: 14, weight: .medium))
         .padding(15)
         .background(FinanceStyle.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .environment(\.locale, Locale(identifier: "vi_VN"))
+        .onChange(of: isEnabled) { enabled in
+            if enabled { resetDates() }
+        }
+        .onChange(of: start) { _ in normalizeDates() }
+        .onChange(of: end) { _ in normalizeDates() }
+    }
+
+    private func resetDates() {
+        normalizeDates()
+    }
+
+    private func normalizeDates() {
+        let calendar = Calendar.current
+        start = calendar.startOfDay(for: start)
+        if calendar.isDateInToday(end) {
+            let now = Date.now
+            if abs(end.timeIntervalSince(now)) > 1 { end = now }
+        } else {
+            end = calendar.date(byAdding: DateComponents(day: 1, second: -1), to: calendar.startOfDay(for: end)) ?? end
+        }
+        if start > end { start = calendar.startOfDay(for: end) }
     }
 }
 

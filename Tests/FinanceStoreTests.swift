@@ -183,4 +183,29 @@ final class FinanceStoreTests: XCTestCase {
 
         XCTAssertEqual(RecurrenceFrequency.weekdays.next(after: friday, calendar: calendar), monday)
     }
+
+    func testInternalTransferChangesWalletBalancesWithoutChangingTotalBalance() {
+        let (store, defaults, suite) = makeStore()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let cash = store.wallets[0]
+        let bank = store.wallets[1]
+        let originalBalance = store.balance
+
+        store.transfer(amount: 250, from: cash, to: bank)
+
+        XCTAssertEqual(store.transactions.count, 2)
+        XCTAssertEqual(store.balance, originalBalance, accuracy: 0.001)
+        XCTAssertEqual(store.balance(for: cash), -250, accuracy: 0.001)
+        XCTAssertEqual(store.balance(for: bank), 250, accuracy: 0.001)
+        XCTAssertEqual(store.total(for: .expense, in: .now), 0, accuracy: 0.001)
+    }
+
+    func testBudgetPeriodRangeSupportsQuarterlyCycle() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let may = calendar.date(from: DateComponents(year: 2025, month: 5, day: 20))!
+        let range = BudgetPeriod.quarterly.range(containing: may, calendar: calendar)
+        XCTAssertEqual(calendar.component(.month, from: range.0), 4)
+        XCTAssertEqual(calendar.component(.month, from: range.1), 6)
+    }
 }

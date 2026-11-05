@@ -8,6 +8,12 @@ private struct MonthlySpend: Identifiable {
     let amount: Double
 }
 
+private enum ReportChartMode: String, CaseIterable, Identifiable {
+    case days = "Theo ngày"
+    case months = "Theo tháng"
+    var id: String { rawValue }
+}
+
 private struct CategorySpend: Identifiable {
     let category: FinanceCategory
     let amount: Double
@@ -17,9 +23,10 @@ private struct CategorySpend: Identifiable {
 struct ReportsView: View {
     @ObservedObject var store: FinanceStore
     @State private var month = Date()
-    @State private var timeFilterEnabled = true
+    @State private var timeFilterEnabled = false
     @State private var rangeStart = FinanceDate.startOfMonth(containing: .now)
     @State private var rangeEnd = Date.now
+    @State private var chartMode: ReportChartMode = .months
 
     private var effectiveStart: Date { timeFilterEnabled ? min(rangeStart, rangeEnd) : .distantPast }
     private var effectiveEnd: Date { timeFilterEnabled ? max(rangeStart, rangeEnd) : .distantFuture }
@@ -49,6 +56,22 @@ struct ReportsView: View {
             return MonthlySpend(date: date, label: DateText.compactMonth(date), amount: store.total(for: .expense, from: start, through: end))
         }
     }
+
+    private var dailySeries: [MonthlySpend] {
+        let calendar = Calendar.current
+        let startOfMonth = FinanceDate.startOfMonth(containing: month)
+        guard let days = calendar.range(of: .day, in: .month, for: startOfMonth) else { return [] }
+        return days.compactMap { day in
+            guard let date = calendar.date(byAdding: .day, value: day - 1, to: startOfMonth),
+                  let next = calendar.date(byAdding: .day, value: 1, to: date) else { return nil }
+            let start = max(date, effectiveStart)
+            let end = min(next.addingTimeInterval(-1), effectiveEnd)
+            let amount = start <= end ? store.total(for: .expense, from: start, through: end) : 0
+            return MonthlySpend(date: date, label: String(day), amount: amount)
+        }
+    }
+
+    private var chartSeries: [MonthlySpend] { chartMode == .days ? dailySeries : monthlySeries }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -112,11 +135,15 @@ struct ReportsView: View {
 
     private var trendCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            SectionHeading(title: timeFilterEnabled ? "Chi tiêu theo tháng" : "Chi tiêu 6 tháng")
-            if monthlySeries.allSatisfy({ $0.amount == 0 }) {
+            SectionHeading(title: chartMode == .days ? "Chi tiêu theo ngày" : (timeFilterEnabled ? "Chi tiêu theo tháng" : "Chi tiêu 6 tháng"))
+            Picker("Kiểu biểu đồ", selection: $chartMode) {
+                ForEach(ReportChartMode.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            if chartSeries.allSatisfy({ $0.amount == 0 }) {
                 EmptyState(symbol: "chart.bar", title: "Biểu đồ đang chờ dữ liệu", message: "Các khoản chi sẽ xuất hiện tại đây.")
             } else {
-                Chart(monthlySeries) { item in
+                Chart(chartSeries) { item in
                     BarMark(
                         x: .value("Tháng", item.label),
                         y: .value("Chi tiêu", item.amount)
@@ -127,7 +154,7 @@ struct ReportsView: View {
                 .chartLegend(.hidden)
                 .chartYAxis { AxisMarks(position: .leading) }
                 .frame(height: 190)
-                .accessibilityLabel("Biểu đồ chi tiêu trong 6 tháng gần đây")
+                .accessibilityLabel(chartMode == .days ? "Biểu đồ chi tiêu từng ngày" : "Biểu đồ chi tiêu theo tháng")
             }
         }
         .padding(18)

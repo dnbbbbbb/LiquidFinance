@@ -1,5 +1,8 @@
 import Foundation
 import Combine
+#if canImport(WidgetKit)
+import WidgetKit
+#endif
 
 @MainActor
 final class FinanceStore: ObservableObject {
@@ -17,6 +20,7 @@ final class FinanceStore: ObservableObject {
     private let categoriesKey = "finance.categories.v1"
     private let walletsKey = "finance.wallets.v1"
     private let recurringKey = "finance.recurring.v1"
+    private let widgetDefaults = UserDefaults(suiteName: "group.vn.liquidfinance")
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -31,6 +35,7 @@ final class FinanceStore: ObservableObject {
         }
         self.wallets = loadedWallets
         self.recurringRules = Self.decode([RecurringRule].self, from: defaults, key: "finance.recurring.v1") ?? []
+        syncWidgetSnapshot()
     }
 
     var balance: Double {
@@ -53,12 +58,12 @@ final class FinanceStore: ObservableObject {
     }
 
     func total(for type: TransactionType, from start: Date, through end: Date) -> Double {
-        transactions(from: start, through: end).filter { $0.type == type }.reduce(0) { $0 + $1.amount }
+        transactions(from: start, through: end).filter { $0.type == type && $0.transferID == nil }.reduce(0) { $0 + $1.amount }
     }
 
     func total(for type: TransactionType, in month: Date, calendar: Calendar = .current) -> Double {
         transactions(in: month, calendar: calendar)
-            .filter { $0.type == type }
+            .filter { $0.type == type && $0.transferID == nil }
             .reduce(0) { $0 + $1.amount }
     }
 
@@ -74,13 +79,13 @@ final class FinanceStore: ObservableObject {
 
     private func spent(categoryIDs: Set<String>, from start: Date, through end: Date) -> Double {
         transactions(from: start, through: end)
-            .filter { $0.type == .expense && categoryIDs.contains($0.category.id) }
+            .filter { $0.type == .expense && $0.transferID == nil && categoryIDs.contains($0.category.id) }
             .reduce(0) { $0 + $1.amount }
     }
 
     func spent(for budget: SpendingBudget, from start: Date, through end: Date) -> Double {
         let ids = Set(budget.categoryIDs + categories.filter { budget.categoryIDs.contains($0.parentID ?? "") }.map(\.id))
-        return transactions(from: start, through: end).filter { $0.type == .expense && ids.contains($0.category.id) }.reduce(0) { $0 + $1.amount }
+        return transactions(from: start, through: end).filter { $0.type == .expense && $0.transferID == nil && ids.contains($0.category.id) }.reduce(0) { $0 + $1.amount }
     }
 
     func setRecurringRule(_ rule: RecurringRule) {
@@ -101,7 +106,7 @@ final class FinanceStore: ObservableObject {
             var safetyCount = 0
             while rule.nextDate <= now && safetyCount < 500 {
                 transactions.append(FinanceTransaction(title: rule.title, amount: rule.amount, date: rule.nextDate, type: rule.type, category: rule.category, account: rule.account, walletID: rule.walletID, recurrenceID: rule.id, note: rule.note))
-                rule.nextDate = rule.frequency.next(after: rule.nextDate)
+                rule.nextDate = rule.frequency.next(after: rule.nextDate, weekday: rule.weekday)
                 safetyCount += 1
                 changed = true
             }
@@ -160,7 +165,18 @@ final class FinanceStore: ObservableObject {
     }
 
     func deleteTransaction(id: UUID) {
-        transactions.removeAll { $0.id == id }
+        guard let transaction = transactions.first(where: { $0.id == id }) else { return }
+        transactions.removeAll { $0.id == id || (transaction.transferID != nil && $0.transferID == transaction.transferID) }
+        persist(transactions, key: transactionsKey)
+    }
+
+    func transfer(amount: Double, from source: FinanceWallet, to destination: FinanceWallet, date: Date = .now, note: String = "") {
+        guard amount > 0, source.id != destination.id else { return }
+        let transferID = UUID()
+        let title = "Chuyển khoản nội bộ"
+        let suffix = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        transactions.append(FinanceTransaction(title: title, amount: amount, date: date, type: .expense, category: .other, account: source.name, walletID: source.id, transferID: transferID, note: suffix))
+        transactions.append(FinanceTransaction(title: title, amount: amount, date: date, type: .income, category: .incomeOther, account: destination.name, walletID: destination.id, transferID: transferID, note: suffix))
         persist(transactions, key: transactionsKey)
     }
 
@@ -193,6 +209,7 @@ final class FinanceStore: ObservableObject {
         wallets = [FinanceWallet(name: "Tiền mặt"), FinanceWallet(name: "Tài khoản ngân hàng", kind: "Tài khoản ngân hàng")]
         recurringRules = []
         defaults.removeObject(forKey: recurringKey)
+        syncWidgetSnapshot()
     }
 
     func backupData() throws -> Data {
@@ -212,6 +229,17 @@ final class FinanceStore: ObservableObject {
     private func persist<T: Encodable>(_ value: T, key: String) {
         guard let data = try? JSONEncoder().encode(value) else { return }
         defaults.set(data, forKey: key)
+        syncWidgetSnapshot()
+    }
+
+    private func syncWidgetSnapshot() {
+        widgetDefaults?.set(balance, forKey: "finance.widget.balance")
+        widgetDefaults?.set(preferences.currencyCode, forKey: "finance.widget.currency")
+        widgetDefaults?.set(preferences.hidesBalance, forKey: "finance.widget.hidesBalance")
+        widgetDefaults?.set(Date.now, forKey: "finance.widget.updatedAt")
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadAllTimelines()
+        #endif
     }
 
     private static func decode<T: Decodable>(_ type: T.Type, from defaults: UserDefaults, key: String) -> T? {

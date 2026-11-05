@@ -27,6 +27,7 @@ extension Color {
 
 extension FinanceCategory {
     var tint: Color {
+        if let colorHex { return Color(hex: colorHex) }
         switch id {
         case "food": return Color(hex: 0xF09A56)
         case "transport": return Color(hex: 0x5187E8)
@@ -68,14 +69,14 @@ enum DateText {
     static func monthYear(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "vi_VN")
-        formatter.dateFormat = "MM/yyyy"
+        formatter.dateFormat = "'Tháng' MM/'năm' yyyy"
         return formatter.string(from: date).capitalized
     }
 
     static func compactMonth(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "vi_VN")
-        formatter.dateFormat = "M/yy"
+        formatter.dateFormat = "MM/yyyy"
         return formatter.string(from: date)
     }
 

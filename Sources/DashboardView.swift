@@ -68,7 +68,10 @@ struct DashboardView: View {
                     Image(systemName: store.preferences.hidesBalance ? "eye.slash" : "eye")
                         .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(.white.opacity(0.85))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel(store.preferences.hidesBalance ? "Hiện số dư" : "Ẩn số dư")
             }
             Text(store.preferences.hidesBalance ? "••••••••" : MoneyText.string(store.balance, currencyCode: store.preferences.currencyCode))
@@ -163,9 +166,9 @@ struct DashboardView: View {
             } else {
                 VStack(spacing: 12) {
                     ForEach(store.budgets.prefix(3)) { budget in
-                        let start = FinanceDate.startOfMonth(containing: month)
-                        let end = Calendar.current.date(byAdding: DateComponents(month: 1, second: -1), to: start) ?? month
-                        let spent = store.spent(for: budget, from: start, through: end)
+                        let periodRange = budget.period.range(containing: month)
+                        let spent = store.spent(for: budget, from: periodRange.0, through: periodRange.1)
+                        let warning = spent >= budget.monthlyLimit * 0.8 && spent < budget.monthlyLimit
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
                                 Label(budget.categoryIDs.compactMap { id in store.categories.first(where: { $0.id == id })?.name }.joined(separator: ", "), systemImage: budget.category.symbol)
@@ -177,6 +180,11 @@ struct DashboardView: View {
                                     .foregroundStyle(FinanceStyle.muted)
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.75)
+                            }
+                            if warning {
+                                Label("Đã dùng từ 80% ngân sách \(budget.period.title.lowercased())", systemImage: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(Color(hex: 0xE7A940))
                             }
                             ProgressView(value: budget.monthlyLimit > 0 ? min(spent / budget.monthlyLimit, 1) : 0)
                                 .tint(spent >= budget.monthlyLimit ? FinanceStyle.red : budget.category.tint)
@@ -205,6 +213,10 @@ struct DashboardView: View {
 struct TransactionRow: View {
     let transaction: FinanceTransaction
     let currencyCode: String
+    private var subtitle: String {
+        let categoryName = transaction.transferID == nil ? transaction.category.rawValue : "Chuyển khoản nội bộ"
+        return "\(categoryName) · \(DateText.dateTime(transaction.date))"
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -214,7 +226,7 @@ struct TransactionRow: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(FinanceStyle.ink)
                     .lineLimit(1)
-                Text("\(transaction.category.rawValue) · \(DateText.dateTime(transaction.date))")
+                Text(subtitle)
                     .font(.system(size: 12))
                     .foregroundStyle(FinanceStyle.muted)
                     .lineLimit(1)

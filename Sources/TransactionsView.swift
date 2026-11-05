@@ -80,7 +80,6 @@ struct TransactionsView: View {
             let start = FinanceDate.startOfMonth(containing: month)
             rangeStart = start
             rangeEnd = Calendar.current.date(byAdding: DateComponents(month: 1, second: -1), to: start) ?? month
-            timeFilterEnabled = true
         }
     }
 
@@ -150,6 +149,7 @@ struct TransactionEditorView: View {
     @State private var usesCategoryAsTitle: Bool
     @State private var isRecurring: Bool
     @State private var recurrenceFrequency: RecurrenceFrequency
+    @State private var recurrenceWeekday: Int
     @State private var showingValidationError = false
 
     init(store: FinanceStore, transaction: FinanceTransaction? = nil) {
@@ -167,6 +167,7 @@ struct TransactionEditorView: View {
         let existingRule = store.recurringRules.first(where: { $0.id == transaction?.recurrenceID })
         _isRecurring = State(initialValue: existingRule != nil)
         _recurrenceFrequency = State(initialValue: existingRule?.frequency ?? .monthly)
+        _recurrenceWeekday = State(initialValue: existingRule?.weekday ?? Calendar.current.component(.weekday, from: transaction?.date ?? .now))
     }
 
     private var categories: [FinanceCategory] {
@@ -257,6 +258,13 @@ struct TransactionEditorView: View {
                         Picker("Chu kỳ", selection: $recurrenceFrequency) {
                             ForEach(RecurrenceFrequency.allCases) { Text($0.title).tag($0) }
                         }
+                        if recurrenceFrequency == .weekly || recurrenceFrequency == .biweekly {
+                            Picker("Ngày lặp", selection: $recurrenceWeekday) {
+                                ForEach(1...7, id: \.self) { value in
+                                    Text(FinanceDate.weekdayTitle(value)).tag(value)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -272,6 +280,16 @@ struct TransactionEditorView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Lưu") { save() }
                         .fontWeight(.bold)
+                }
+                if let transaction {
+                    ToolbarItem(placement: .bottomBar) {
+                        Button(role: .destructive) {
+                            store.deleteTransaction(id: transaction.id)
+                            dismiss()
+                        } label: {
+                            Label("Xóa giao dịch", systemImage: "trash")
+                        }
+                    }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
@@ -337,8 +355,9 @@ struct TransactionEditorView: View {
             let ruleID = transaction?.recurrenceID ?? UUID()
             saved.recurrenceID = ruleID
             let priorRule = store.recurringRules.first(where: { $0.id == ruleID })
-            let nextDate = priorRule?.nextDate ?? recurrenceFrequency.next(after: date)
-            store.setRecurringRule(RecurringRule(id: ruleID, title: saved.title, amount: amount, type: type, category: category, walletID: saved.walletID, account: saved.account, note: saved.note, frequency: recurrenceFrequency, nextDate: nextDate))
+            let weekday = (recurrenceFrequency == .weekly || recurrenceFrequency == .biweekly) ? recurrenceWeekday : nil
+            let nextDate = priorRule?.nextDate ?? recurrenceFrequency.next(after: date, weekday: weekday)
+            store.setRecurringRule(RecurringRule(id: ruleID, title: saved.title, amount: amount, type: type, category: category, walletID: saved.walletID, account: saved.account, note: saved.note, frequency: recurrenceFrequency, weekday: weekday, nextDate: nextDate))
         } else if let ruleID = transaction?.recurrenceID {
             store.deleteRecurringRule(id: ruleID)
             saved.recurrenceID = nil

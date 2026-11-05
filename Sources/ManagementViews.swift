@@ -70,6 +70,7 @@ private struct CategoryEditorView: View {
     @State private var type: TransactionType
     @State private var parentID: String
     @State private var symbol: String
+    @State private var colorHex: UInt32?
     @State private var error = false
 
     init(store: FinanceStore, category: FinanceCategory? = nil) {
@@ -78,6 +79,7 @@ private struct CategoryEditorView: View {
         _type = State(initialValue: category?.type ?? .expense)
         _parentID = State(initialValue: category?.parentID ?? "")
         _symbol = State(initialValue: category?.symbol ?? "circle.grid.2x2.fill")
+        _colorHex = State(initialValue: category?.colorHex)
     }
 
     var body: some View {
@@ -87,7 +89,7 @@ private struct CategoryEditorView: View {
                     TextField("Tên danh mục", text: $name)
                     Picker("Loại", selection: $type) { ForEach(TransactionType.allCases) { Text($0.title).tag($0) } }
                     Picker("Nhóm cha", selection: $parentID) {
-                        Text("Không có · danh mục cha").tag("")
+                        Text("Không có").tag("")
                         ForEach(store.categories(for: type).filter { $0.parentID == nil && $0.id != category?.id }) { item in Text(item.name).tag(item.id) }
                     }
                 }
@@ -105,6 +107,28 @@ private struct CategoryEditorView: View {
                         }
                     }
                     .padding(.vertical, 4)
+                }
+                Section("Màu sắc") {
+                    HStack(spacing: 12) {
+                        Button { colorHex = nil } label: {
+                            Image(systemName: colorHex == nil ? "checkmark" : "circle")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(colorHex == nil ? .white : FinanceStyle.muted)
+                                .frame(width: 36, height: 36)
+                                .background(colorHex == nil ? FinanceStyle.purple : FinanceStyle.background, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        ForEach(Self.colors, id: \.self) { color in
+                            Button { colorHex = color } label: {
+                                Image(systemName: colorHex == color ? "checkmark" : "circle.fill")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(colorHex == color ? .white : Color(hex: color))
+                                    .frame(width: 36, height: 36)
+                                    .background(Color(hex: color).opacity(colorHex == color ? 1 : 0.14), in: Circle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
                 Text("Danh mục con sẽ được hiển thị bên trong nhóm cha.").font(.system(size: 13)).foregroundStyle(FinanceStyle.muted)
             }
@@ -129,18 +153,21 @@ private struct CategoryEditorView: View {
             name: cleanName,
             type: type,
             parentID: parentID.isEmpty ? nil : parentID,
-            symbol: symbol
+            symbol: symbol,
+            colorHex: colorHex
         ))
         dismiss()
     }
 
     private static let symbols = ["circle.grid.2x2.fill", "fork.knife", "cart.fill", "car.fill", "house.fill", "bolt.fill", "heart.fill", "cross.case.fill", "book.closed.fill", "gamecontroller.fill", "gift.fill", "briefcase.fill", "bag.fill", "phone.fill", "airplane", "pawprint.fill", "music.note", "creditcard.fill", "banknote.fill", "ellipsis.circle.fill"]
+    private static let colors: [UInt32] = [0x665DF2, 0xF09A56, 0x5187E8, 0xBD73D7, 0xEA7284, 0x36AFA1, 0xE1A53C, 0x22A879]
 }
 
 struct WalletManagementView: View {
     @ObservedObject var store: FinanceStore
     @Environment(\.dismiss) private var dismiss
     @State private var sheet: WalletSheet?
+    @State private var showingTransfer = false
 
     private enum WalletSheet: Identifiable {
         case add
@@ -176,7 +203,11 @@ struct WalletManagementView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Đóng") { dismiss() } }
-                ToolbarItem(placement: .primaryAction) { Button { sheet = .add } label: { Image(systemName: "plus") } }
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button { showingTransfer = true } label: { Image(systemName: "arrow.left.arrow.right") }
+                        .accessibilityLabel("Chuyển khoản nội bộ")
+                    Button { sheet = .add } label: { Image(systemName: "plus") }
+                }
             }
             .sheet(item: $sheet) { sheet in
                 switch sheet {
@@ -184,7 +215,75 @@ struct WalletManagementView: View {
                 case .edit(let wallet): WalletEditorView(store: store, wallet: wallet)
                 }
             }
+            .sheet(isPresented: $showingTransfer) {
+                InternalTransferEditor(store: store)
+            }
         }
+    }
+}
+
+private struct InternalTransferEditor: View {
+    @ObservedObject var store: FinanceStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var sourceID: UUID
+    @State private var destinationID: UUID
+    @State private var amount = ""
+    @State private var date = Date.now
+    @State private var note = ""
+    @State private var invalid = false
+
+    init(store: FinanceStore) {
+        self.store = store
+        let source = store.wallets.first?.id ?? UUID()
+        let destination = store.wallets.dropFirst().first?.id ?? source
+        _sourceID = State(initialValue: source)
+        _destinationID = State(initialValue: destination)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Chuyển giữa các ví") {
+                    Picker("Từ", selection: $sourceID) {
+                        ForEach(store.wallets) { Text($0.name).tag($0.id) }
+                    }
+                    Picker("Đến", selection: $destinationID) {
+                        ForEach(store.wallets) { Text($0.name).tag($0.id) }
+                    }
+                }
+                Section("Số tiền") {
+                    HStack {
+                        AmountTextField(text: $amount, placeholder: "0", fontSize: 22).frame(height: 34)
+                        Text(store.preferences.currencyCode).foregroundStyle(FinanceStyle.muted)
+                    }
+                    DatePicker("Ngày và giờ", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                }
+                Section("Ghi chú") { TextField("Không bắt buộc", text: $note) }
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle("Chuyển khoản nội bộ")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Hủy") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Chuyển") { save() }.fontWeight(.bold) }
+            }
+            .alert("Chưa thể chuyển khoản", isPresented: $invalid) {
+                Button("Đã hiểu", role: .cancel) { }
+            } message: {
+                Text("Chọn hai ví khác nhau và nhập số tiền lớn hơn 0.")
+            }
+        }
+        .background(KeyboardDismissOnTap())
+    }
+
+    private func save() {
+        guard let source = store.wallets.first(where: { $0.id == sourceID }),
+              let destination = store.wallets.first(where: { $0.id == destinationID }),
+              let value = AmountInput.parse(amount), value > 0, source.id != destination.id else {
+            invalid = true
+            return
+        }
+        store.transfer(amount: value, from: source, to: destination, date: date, note: note)
+        dismiss()
     }
 }
 
@@ -205,7 +304,7 @@ struct RecurringManagementView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(rule.title).font(.system(size: 15, weight: .semibold))
-                                Text("\(rule.frequency.title) · kế tiếp \(DateText.dateTime(rule.nextDate))")
+                                Text(scheduleText(for: rule))
                                     .font(.system(size: 12)).foregroundStyle(FinanceStyle.muted)
                             }
                             Spacer()
@@ -236,6 +335,11 @@ struct RecurringManagementView: View {
             }
         }
     }
+
+    private func scheduleText(for rule: RecurringRule) -> String {
+        let weekday = rule.weekday.map { " · \(FinanceDate.weekdayTitle($0))" } ?? ""
+        return "\(rule.frequency.title)\(weekday) · kế tiếp \(DateText.dateTime(rule.nextDate))"
+    }
 }
 
 private struct RecurringRuleEditor: View {
@@ -243,12 +347,14 @@ private struct RecurringRuleEditor: View {
     @Environment(\.dismiss) private var dismiss
     let rule: RecurringRule
     @State private var frequency: RecurrenceFrequency
+    @State private var weekday: Int
     @State private var nextDate: Date
 
     init(store: FinanceStore, rule: RecurringRule) {
         self.store = store
         self.rule = rule
         _frequency = State(initialValue: rule.frequency)
+        _weekday = State(initialValue: rule.weekday ?? Calendar.current.component(.weekday, from: rule.nextDate))
         _nextDate = State(initialValue: rule.nextDate)
     }
 
@@ -264,6 +370,11 @@ private struct RecurringRuleEditor: View {
                     Picker("Chu kỳ", selection: $frequency) {
                         ForEach(RecurrenceFrequency.allCases) { Text($0.title).tag($0) }
                     }
+                    if frequency == .weekly || frequency == .biweekly {
+                        Picker("Ngày lặp", selection: $weekday) {
+                            ForEach(1...7, id: \.self) { value in Text(FinanceDate.weekdayTitle(value)).tag(value) }
+                        }
+                    }
                     DatePicker("Lần tiếp theo", selection: $nextDate, displayedComponents: [.date, .hourAndMinute])
                 }
             }
@@ -274,6 +385,7 @@ private struct RecurringRuleEditor: View {
                     Button("Lưu") {
                         var updated = rule
                         updated.frequency = frequency
+                        updated.weekday = (frequency == .weekly || frequency == .biweekly) ? weekday : nil
                         updated.nextDate = nextDate
                         store.setRecurringRule(updated)
                         dismiss()

@@ -67,6 +67,13 @@ struct ContentView: View {
         .onChange(of: scenePhase) { phase in
             if phase == .active { store.processDueRecurringTransactions() }
         }
+        .onOpenURL { url in
+            guard url.scheme == "liquidfinance" else { return }
+            if url.host == "add-transaction" {
+                selectedTab = .transactions
+                showingNewTransaction = true
+            }
+        }
         .preferredColorScheme(store.preferences.appearance == "light" ? .light : (store.preferences.appearance == "dark" ? .dark : nil))
     }
 }

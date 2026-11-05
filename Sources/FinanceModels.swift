@@ -14,14 +14,16 @@ struct FinanceCategory: Codable, Equatable, Hashable, Identifiable {
     var type: TransactionType
     var parentID: String?
     var symbol: String
+    var colorHex: UInt32?
     var rawValue: String { name }
 
-    init(id: String = UUID().uuidString, name: String, type: TransactionType, parentID: String? = nil, symbol: String = "circle.grid.2x2.fill") {
+    init(id: String = UUID().uuidString, name: String, type: TransactionType, parentID: String? = nil, symbol: String = "circle.grid.2x2.fill", colorHex: UInt32? = nil) {
         self.id = id
         self.name = name
         self.type = type
         self.parentID = parentID
         self.symbol = symbol
+        self.colorHex = colorHex
     }
 
     static let food = FinanceCategory(id: "food", name: "Ăn uống", type: .expense, symbol: "fork.knife")
@@ -43,7 +45,7 @@ struct FinanceCategory: Codable, Equatable, Hashable, Identifiable {
     static var incomeCategories: [FinanceCategory] { defaults.filter { $0.type == .income } }
     static var defaults: [FinanceCategory] { [food, transport, shopping, housing, health, entertainment, education, bills, salary, bonus, investment, gift, other, incomeOther] }
 
-    private enum CodingKeys: String, CodingKey { case id, name, type, parentID, symbol }
+    private enum CodingKeys: String, CodingKey { case id, name, type, parentID, symbol, colorHex }
 
     init(from decoder: Decoder) throws {
         if let legacy = try? decoder.singleValueContainer().decode(String.self) {
@@ -58,7 +60,8 @@ struct FinanceCategory: Codable, Equatable, Hashable, Identifiable {
             name: try values.decode(String.self, forKey: .name),
             type: try values.decode(TransactionType.self, forKey: .type),
             parentID: try values.decodeIfPresent(String.self, forKey: .parentID),
-            symbol: try values.decodeIfPresent(String.self, forKey: .symbol) ?? "circle.grid.2x2.fill"
+            symbol: try values.decodeIfPresent(String.self, forKey: .symbol) ?? "circle.grid.2x2.fill",
+            colorHex: try values.decodeIfPresent(UInt32.self, forKey: .colorHex)
         )
     }
 }
@@ -73,6 +76,7 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
     var account: String
     var walletID: UUID?
     var recurrenceID: UUID?
+    var transferID: UUID?
     var note: String
 
     init(
@@ -85,6 +89,7 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
         account: String = "Tiền mặt",
         walletID: UUID? = nil,
         recurrenceID: UUID? = nil,
+        transferID: UUID? = nil,
         note: String = ""
     ) {
         self.id = id
@@ -96,10 +101,11 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
         self.account = account
         self.walletID = walletID
         self.recurrenceID = recurrenceID
+        self.transferID = transferID
         self.note = note
     }
 
-    private enum CodingKeys: String, CodingKey { case id, title, amount, date, type, category, account, walletID, recurrenceID, note }
+    private enum CodingKeys: String, CodingKey { case id, title, amount, date, type, category, account, walletID, recurrenceID, transferID, note }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -113,6 +119,7 @@ struct FinanceTransaction: Identifiable, Codable, Equatable {
         account = try values.decodeIfPresent(String.self, forKey: .account) ?? "Tiền mặt"
         walletID = try values.decodeIfPresent(UUID.self, forKey: .walletID)
         recurrenceID = try values.decodeIfPresent(UUID.self, forKey: .recurrenceID)
+        transferID = try values.decodeIfPresent(UUID.self, forKey: .transferID)
         note = try values.decodeIfPresent(String.self, forKey: .note) ?? ""
     }
 }
@@ -132,21 +139,52 @@ struct SpendingBudget: Identifiable, Codable, Equatable {
     var category: FinanceCategory
     var monthlyLimit: Double
     var categoryIDs: [String]
+    var period: BudgetPeriod
 
-    init(id: UUID = UUID(), category: FinanceCategory, monthlyLimit: Double, categoryIDs: [String]? = nil) {
+    init(id: UUID = UUID(), category: FinanceCategory, monthlyLimit: Double, categoryIDs: [String]? = nil, period: BudgetPeriod = .monthly) {
         self.id = id
         self.category = category
         self.monthlyLimit = monthlyLimit
         self.categoryIDs = categoryIDs ?? [category.id]
+        self.period = period
     }
 
-    private enum CodingKeys: String, CodingKey { case id, category, monthlyLimit, categoryIDs }
+    private enum CodingKeys: String, CodingKey { case id, category, monthlyLimit, categoryIDs, period }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         id = try values.decode(UUID.self, forKey: .id)
         category = try values.decode(FinanceCategory.self, forKey: .category)
         monthlyLimit = try values.decode(Double.self, forKey: .monthlyLimit)
         categoryIDs = try values.decodeIfPresent([String].self, forKey: .categoryIDs) ?? [category.id]
+        period = try values.decodeIfPresent(BudgetPeriod.self, forKey: .period) ?? .monthly
+    }
+}
+
+enum BudgetPeriod: String, Codable, CaseIterable, Identifiable {
+    case weekly, monthly, quarterly, yearly
+    var id: String { rawValue }
+    var title: String {
+        switch self { case .weekly: return "Tuần"; case .monthly: return "Tháng"; case .quarterly: return "Quý"; case .yearly: return "Năm" }
+    }
+
+    func range(containing date: Date, calendar: Calendar = .current) -> (Date, Date) {
+        let start: Date
+        switch self {
+        case .weekly:
+            start = calendar.dateInterval(of: .weekOfYear, for: date)?.start ?? date
+        case .monthly:
+            start = calendar.dateInterval(of: .month, for: date)?.start ?? date
+        case .quarterly:
+            let parts = calendar.dateComponents([.year, .month], from: date)
+            let quarterMonth = (((parts.month ?? 1) - 1) / 3) * 3 + 1
+            start = calendar.date(from: DateComponents(year: parts.year, month: quarterMonth, day: 1)) ?? date
+        case .yearly:
+            start = calendar.dateInterval(of: .year, for: date)?.start ?? date
+        }
+        let component: Calendar.Component = self == .weekly ? .weekOfYear : (self == .monthly ? .month : (self == .quarterly ? .month : .year))
+        let value = self == .quarterly ? 3 : 1
+        let next = calendar.date(byAdding: component, value: value, to: start) ?? start
+        return (start, next.addingTimeInterval(-1))
     }
 }
 
@@ -164,7 +202,14 @@ enum RecurrenceFrequency: String, Codable, CaseIterable, Identifiable {
         case .yearly: return "Hằng năm"
         }
     }
-    func next(after date: Date, calendar: Calendar = .current) -> Date {
+    func next(after date: Date, weekday: Int? = nil, calendar: Calendar = .current) -> Date {
+        if (self == .weekly || self == .biweekly), let weekday {
+            let currentWeekday = calendar.component(.weekday, from: date)
+            var offset = (weekday - currentWeekday + 7) % 7
+            if offset == 0 { offset = self == .biweekly ? 14 : 7 }
+            else if self == .biweekly { offset += 7 }
+            return calendar.date(byAdding: .day, value: offset, to: date) ?? date.addingTimeInterval(86_400)
+        }
         switch self {
         case .daily:
             return calendar.date(byAdding: .day, value: 1, to: date) ?? date.addingTimeInterval(86_400)
@@ -198,11 +243,12 @@ struct RecurringRule: Identifiable, Codable, Equatable {
     var account: String
     var note: String
     var frequency: RecurrenceFrequency
+    var weekday: Int?
     var nextDate: Date
     var isEnabled: Bool
-    init(id: UUID = UUID(), title: String, amount: Double, type: TransactionType, category: FinanceCategory, walletID: UUID?, account: String, note: String, frequency: RecurrenceFrequency, nextDate: Date, isEnabled: Bool = true) {
+    init(id: UUID = UUID(), title: String, amount: Double, type: TransactionType, category: FinanceCategory, walletID: UUID?, account: String, note: String, frequency: RecurrenceFrequency, weekday: Int? = nil, nextDate: Date, isEnabled: Bool = true) {
         self.id = id; self.title = title; self.amount = amount; self.type = type; self.category = category
-        self.walletID = walletID; self.account = account; self.note = note; self.frequency = frequency; self.nextDate = nextDate; self.isEnabled = isEnabled
+        self.walletID = walletID; self.account = account; self.note = note; self.frequency = frequency; self.weekday = weekday; self.nextDate = nextDate; self.isEnabled = isEnabled
     }
 }
 
@@ -236,6 +282,10 @@ enum FinanceDate {
 
     static func isInSameMonth(_ firstDate: Date, as secondDate: Date, calendar: Calendar = .current) -> Bool {
         calendar.isDate(firstDate, equalTo: secondDate, toGranularity: .month)
+    }
+
+    static func weekdayTitle(_ value: Int) -> String {
+        ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"][max(1, min(value, 7)) - 1]
     }
 }
 
