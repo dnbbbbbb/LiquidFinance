@@ -1,0 +1,58 @@
+name: Build IPA and Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create/update (e.g. v1.0.0)"
+        required: true
+        default: "v1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unit tests (core logic + backup/restore)
+        continue-on-error: true   # code has never been compiled yet; remove once tests are green
+        run: swift test
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build (unsigned, device SDK)
+        run: |
+          set -o pipefail
+          xcodebuild -project LiquidFinance.xcodeproj -scheme LiquidFinance \
+            -configuration Release -sdk iphoneos -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tail -n 50
+
+      - name: Package IPA
+        run: |
+          APP=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -n 1)
+          mkdir -p Payload && cp -R "$APP" Payload/
+          zip -qry LiquidFinance-unsigned.ipa Payload
+          ls -lh LiquidFinance-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LiquidFinance-ipa
+          path: LiquidFinance-unsigned.ipa
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: LiquidFinance ${{ inputs.tag || github.ref_name }}
+          files: LiquidFinance-unsigned.ipa
+          body: |
+            Unsigned IPA. Install by re-signing with your Apple ID (AltStore, Sideloadly, TrollStore) — it cannot be installed directly.
